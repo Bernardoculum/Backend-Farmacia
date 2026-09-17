@@ -1,0 +1,40 @@
+{
+    "sqltools.connections": [
+        {
+            "oracleOptions": {
+                "privilege": "Normal",
+                "thickMode": false,
+                "autoCommit": false,
+                "lowerCase": false,
+                "limitPrefetchRows": false
+            },
+            "previewLimit": 50,
+            "server": "localhost",
+            "port": 1521,
+            "driver": "Oracle",
+            "name": "ConexionFarmacia",
+            "database": "XEPDB1",
+            "username": "FARMACIA_BD",
+            "password": "farmacia2026"
+        },
+        {
+            "oracleOptions": {
+                "privilege": "Normal",
+                "thickMode": false,
+                "autoCommit": false,
+                "lowerCase": false,
+                "limitPrefetchRows": false
+            },
+            "previewLimit": 50,
+            "server": "localhost",
+            "port": 1521,
+            "driver": "Oracle",
+            "name": "DBA_CONEXION",
+            "username": "Farmacia_BD",
+            "database": "XEPDB1",
+            "password": "farmacia2026"
+        }
+    ],
+    "sqltools.useNodeRuntime": true
+}
+

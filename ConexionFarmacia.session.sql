@@ -1,0 +1,19 @@
+CREATE USER Farmacia_BD IDENTIFIED BY farmacia2026;
+
+GRANT CONNECT TO Farmacia_BD;
+GRANT RESOURCE TO Farmacia_BD;
+GRANT CREATE VIEW TO Farmacia_BD;
+GRANT CREATE SEQUENCE TO Farmacia_BD;
+GRANT CREATE TRIGGER TO Farmacia_BD;
+GRANT CREATE PROCEDURE TO Farmacia_BD;
+GRANT UNLIMITED TABLESPACE TO Farmacia_BD;
+
+SELECT username, account_status, created
+FROM dba_users
+WHERE username = 'FARMACIA_BD';
+
+
+SELECT table_name FROM user_tables;
+
+
+
