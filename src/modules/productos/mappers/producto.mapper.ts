@@ -1,21 +1,24 @@
 import { Producto } from '../../../database/entities/Producto';
 
 export class ProductoMapper {
-  // Transforma un producto para listas y búsquedas (con stock consolidado)
-  static toListItem(prod: Producto) {
+  // Transforma un producto para listas y búsquedas (con stock consolidado o filtrado por sucursal)
+  static toListItem(prod: Producto, sucursalId?: number) {
     let stockTotal = 0;
     const lotesInfo = (prod.lotes || []).map((l) => {
       let stockLote = 0;
-      const inventarioPorSucursal = (l.inventarios || []).map((inv) => {
-        const disp = Number(inv.cantidadDisponible) || 0;
-        stockLote += disp;
-        return {
-          sucursalId: inv.sucursalId,
-          sucursal: inv.sucursal?.nombre,
-          disponible: disp,
-          reservado: Number(inv.cantidadReservada) || 0,
-        };
-      });
+      const inventarioPorSucursal = (l.inventarios || [])
+        .filter((inv) => !sucursalId || Number(inv.sucursalId) === Number(sucursalId))
+        .map((inv) => {
+          const disp = Number(inv.cantidadDisponible) || 0;
+          stockLote += disp;
+          return {
+            sucursalId: inv.sucursalId,
+            sucursal: inv.sucursal?.nombre,
+            disponible: disp,
+            reservado: Number(inv.cantidadReservada) || 0,
+          };
+        });
+
       stockTotal += stockLote;
       return {
         loteId: l.loteId,

@@ -53,6 +53,36 @@ export class Planilla {
   })
   estado: string;
 
+  @Column("varchar2", {
+    name: "TIPO_PERIODO",
+    length: 20,
+    nullable: true,
+    default: () => "'MENSUAL'",
+  })
+  tipoPeriodo: string | null;
+
+  @Column("varchar2", {
+    name: "OBSERVACIONES",
+    length: 255,
+    nullable: true,
+  })
+  observaciones: string | null;
+
+  @Column("number", { name: "SUCURSAL_ID", nullable: true })
+  sucursalId: number | null;
+
+  @Column("varchar2", { name: "ORIGEN_FONDOS", length: 30, nullable: true })
+  origenFondos: string | null;
+
+  @Column("varchar2", { name: "REFERENCIA_PAGO", length: 100, nullable: true })
+  referenciaPago: string | null;
+
+  @Column("varchar2", { name: "BANCO_ORIGEN", length: 100, nullable: true })
+  bancoOrigen: string | null;
+
+  @Column("varchar2", { name: "OBSERVACIONES_PAGO", length: 255, nullable: true })
+  observacionesPago: string | null;
+
   @OneToMany(
     () => PlanillaDetalle,
     (planillaDetalle) => planillaDetalle.planilla

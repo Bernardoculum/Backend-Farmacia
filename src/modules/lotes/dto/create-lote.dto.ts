@@ -45,4 +45,16 @@ export class CreateLoteDto {
   @IsNumber({}, { message: 'stockInicial debe ser numérico' })
   @Min(1, { message: 'stockInicial debe ser mayor a 0' })
   stockInicial?: number;
+
+  @ApiProperty({ example: 'Factura: FAC-2026-0001', description: 'Observación o número de factura (opcional)', required: false })
+  @IsOptional()
+  @IsString()
+  observacion?: string;
+
+  @ApiProperty({ example: 15.0, description: 'Nuevo precio de venta al público para el producto (opcional)', required: false })
+  @IsOptional()
+  @IsNumber({}, { message: 'nuevoPrecioVenta debe ser numérico' })
+  @Min(0.01, { message: 'nuevoPrecioVenta debe ser mayor a 0' })
+  nuevoPrecioVenta?: number;
 }
+

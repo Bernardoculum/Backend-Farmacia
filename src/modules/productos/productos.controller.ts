@@ -21,6 +21,8 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { Role } from '../../common/enums/role.enum';
+import { BranchScope } from '../../common/branch-scope/branch-scope.decorator';
+import { BranchScopeContext } from '../../common/branch-scope/branch-scope.types';
 
 @ApiTags('Productos & Kardex')
 @ApiBearerAuth('JWT-auth')
@@ -35,7 +37,13 @@ export class ProductosController {
   // 1. Listar productos con filtros y paginación
   @Get()
   @ApiOperation({ summary: 'Listar medicamentos con filtros (búsqueda, categoría, laboratorio) y paginación' })
-  findAll(@Query() filterDto: FilterProductoDto) {
+  findAll(
+    @Query() filterDto: FilterProductoDto,
+    @BranchScope() branchScope: BranchScopeContext,
+  ) {
+    if (!branchScope.isGlobal && branchScope.effectiveSucursalId) {
+      filterDto.sucursalId = branchScope.effectiveSucursalId;
+    }
     return this.productosService.findAll(filterDto);
   }
 
@@ -46,20 +54,20 @@ export class ProductosController {
     return this.productosService.findOne(id);
   }
 
-  // 3. Crear nuevo producto (solo administradores o gerentes)
+  // 3. Crear nuevo producto (solo administradores)
   @Post()
   @UseGuards(RolesGuard)
-  @Roles(Role.SUPER_ADMIN, Role.GERENTE_SUCURSAL)
-  @ApiOperation({ summary: 'Registrar un nuevo producto en el catálogo (SUPER_ADMIN o GERENTE)' })
+  @Roles(Role.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Registrar un nuevo producto en el catálogo (solo SUPER_ADMIN)' })
   create(@Body() createDto: CreateProductoDto) {
     return this.productosService.create(createDto);
   }
 
-  // 4. Actualizar producto existente (solo administradores o gerentes)
+  // 4. Actualizar producto existente (solo administradores)
   @Patch(':id')
   @UseGuards(RolesGuard)
-  @Roles(Role.SUPER_ADMIN, Role.GERENTE_SUCURSAL)
-  @ApiOperation({ summary: 'Modificar datos o precios de un producto (SUPER_ADMIN o GERENTE)' })
+  @Roles(Role.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Modificar datos o precios de un producto (solo SUPER_ADMIN)' })
   update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateDto: UpdateProductoDto,
@@ -81,9 +89,13 @@ export class ProductosController {
   @ApiOperation({ summary: 'Consultar bitácora histórica de movimientos de Kardex con saldos' })
   getKardex(
     @Param('id', ParseIntPipe) id: number,
+    @BranchScope() branchScope: BranchScopeContext,
     @Query('sucursalId') sucursalId?: string,
   ) {
-    const sucursalNum = sucursalId ? Number(sucursalId) : undefined;
+    let sucursalNum = sucursalId ? Number(sucursalId) : undefined;
+    if (!branchScope.isGlobal && branchScope.effectiveSucursalId) {
+      sucursalNum = branchScope.effectiveSucursalId;
+    }
     return this.kardexService.getKardexByProducto(id, sucursalNum);
   }
 

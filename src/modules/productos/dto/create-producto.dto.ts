@@ -6,6 +6,7 @@ import {
   IsIn,
   Min,
   MaxLength,
+  Matches,
 } from 'class-validator';
 
 export class CreateProductoDto {
@@ -17,6 +18,9 @@ export class CreateProductoDto {
   @IsNotEmpty({ message: 'El nombre del producto es obligatorio' })
   @IsString({ message: 'El nombre debe ser texto' })
   @MaxLength(200, { message: 'El nombre no puede superar 200 caracteres' })
+  @Matches(/^(?!\s*\d+\s*$).+$/, {
+    message: 'El nombre del producto no puede estar compuesto únicamente por números (ej. 323)',
+  })
   nombre: string;
 
   @IsNotEmpty({ message: 'El precio de venta es obligatorio' })

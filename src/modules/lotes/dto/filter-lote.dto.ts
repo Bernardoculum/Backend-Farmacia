@@ -27,4 +27,16 @@ export class FilterLoteDto {
   @IsOptional()
   @IsIn(['TODOS', 'VIGENTE', 'POR_VENCER', 'VENCIDO'])
   estadoVencimiento?: string;
+
+  @ApiPropertyOptional({ description: 'Página actual para paginación', default: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  page?: number = 1;
+
+  @ApiPropertyOptional({ description: 'Cantidad de registros por página', default: 10 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  limit?: number = 10;
 }

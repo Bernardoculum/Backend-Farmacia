@@ -52,6 +52,20 @@ export class PlanillaDetalle {
   })
   bonificaciones: number;
 
+  @Column("number", {
+    name: "DESCUENTO_IGSS",
+    precision: 18,
+    scale: 2,
+    default: () => "0",
+  })
+  descuentoIgss: number;
+
+  @Column("number", {
+    name: "DIAS_TRABAJADOS",
+    default: () => "30",
+  })
+  diasTrabajados: number;
+
   @ManyToOne(() => Empleado, (empleado) => empleado.planillaDetalles)
   @JoinColumn([{ name: "EMPLEADO_ID", referencedColumnName: "empleadoId" }])
   empleado: Empleado;

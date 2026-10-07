@@ -6,12 +6,13 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { Credencial } from '../../database/entities/Credencial';
+import { AuditoriaEvento } from '../../database/entities/AuditoriaEvento';
 import { JwtStrategy } from './strategies/jwt.strategy';
 
 @Global()
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Credencial]),
+    TypeOrmModule.forFeature([Credencial, AuditoriaEvento]),
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       imports: [ConfigModule],

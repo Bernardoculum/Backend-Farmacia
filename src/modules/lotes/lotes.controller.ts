@@ -18,6 +18,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { Role } from '../../common/enums/role.enum';
+import { BranchScope, BranchScopeContext } from '../../common/branch-scope';
 
 @ApiTags('Lotes & Control de Vencimientos')
 @ApiBearerAuth('JWT-auth')
@@ -29,16 +30,44 @@ export class LotesController {
   @Get()
   @ApiOperation({
     summary:
-      'Listar todos los lotes con cálculo dinámico de caducidad (VIGENTE, POR_VENCER, VENCIDO) y existencias',
+      'Listar todos los lotes con cálculo dinámico de caducidad y existencias',
   })
-  findAll(@Query() filterDto: FilterLoteDto) {
+  findAll(
+    @Query() filterDto: FilterLoteDto,
+    @BranchScope() scope: BranchScopeContext,
+  ) {
+    if (!scope.isGlobal) {
+      filterDto.sucursalId = scope.effectiveSucursalId;
+    }
     return this.lotesService.findAll(filterDto);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Consultar detalle de un lote con su desglose por sucursales' })
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.lotesService.findOne(id);
+  findOne(
+    @Param('id', ParseIntPipe) id: number,
+    @BranchScope() scope: BranchScopeContext,
+  ) {
+    return this.lotesService.findOne(id, scope.effectiveSucursalId);
+  }
+
+  @Post('batch')
+  @UseGuards(RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.GERENTE_SUCURSAL)
+  @ApiOperation({
+    summary:
+      'Registrar recepción múltiple de medicamentos y lotes (con entrada a Kardex y total invertido)',
+  })
+  createBatch(
+    @Body() items: CreateLoteDto[],
+    @BranchScope() scope: BranchScopeContext,
+  ) {
+    if (!scope.isGlobal && scope.effectiveSucursalId) {
+      items.forEach((item) => {
+        item.sucursalId = scope.effectiveSucursalId;
+      });
+    }
+    return this.lotesService.createBatch(items);
   }
 
   @Post()
@@ -48,7 +77,13 @@ export class LotesController {
     summary:
       'Crear un nuevo lote para un medicamento (con stock inicial opcional en Kardex)',
   })
-  create(@Body() createDto: CreateLoteDto) {
+  create(
+    @Body() createDto: CreateLoteDto,
+    @BranchScope() scope: BranchScopeContext,
+  ) {
+    if (!scope.isGlobal && scope.effectiveSucursalId) {
+      createDto.sucursalId = scope.effectiveSucursalId;
+    }
     return this.lotesService.create(createDto);
   }
 
@@ -61,5 +96,18 @@ export class LotesController {
     @Body() updateDto: UpdateLoteDto,
   ) {
     return this.lotesService.update(id, updateDto);
+  }
+
+  @Post(':id/dar-de-baja')
+  @UseGuards(RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.GERENTE_SUCURSAL)
+  @ApiOperation({ summary: 'Dar de baja un lote caducado / merma sanitaria con asiento en Kardex' })
+  darDeBaja(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { motivo?: string; sucursalId?: number },
+    @BranchScope() scope: BranchScopeContext,
+  ) {
+    const sucursalId = scope.isGlobal ? body?.sucursalId : scope.effectiveSucursalId;
+    return this.lotesService.darDeBajaLote(id, body?.motivo, sucursalId);
   }
 }

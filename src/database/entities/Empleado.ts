@@ -44,6 +44,24 @@ export class Empleado {
   @Column("varchar2", { name: "APELLIDO", length: 100 })
   apellido: string;
 
+  @Column("varchar2", { name: "NIT", nullable: true, length: 20 })
+  nit: string | null;
+
+  @Column("varchar2", { name: "NO_AFILIACION_IGSS", nullable: true, length: 30 })
+  noAfiliacionIgss: string | null;
+
+  @Column("varchar2", { name: "FORMA_PAGO", nullable: true, length: 20, default: () => "'TRANSFERENCIA'" })
+  formaPago: string | null;
+
+  @Column("varchar2", { name: "BANCO", nullable: true, length: 100 })
+  banco: string | null;
+
+  @Column("varchar2", { name: "NUMERO_CUENTA", nullable: true, length: 50 })
+  numeroCuenta: string | null;
+
+  @Column("varchar2", { name: "EMAIL", nullable: true, length: 100 })
+  email: string | null;
+
   @OneToOne(() => Credencial, (credencial) => credencial.empleado)
   credencial: Credencial;
 

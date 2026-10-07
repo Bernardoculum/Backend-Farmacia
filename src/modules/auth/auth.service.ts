@@ -9,6 +9,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { Credencial } from '../../database/entities/Credencial';
+import { AuditoriaEvento } from '../../database/entities/AuditoriaEvento';
 import { LoginDto } from './dto/login.dto';
 import { JwtPayload } from './strategies/jwt.strategy';
 
@@ -19,10 +20,38 @@ export class AuthService {
   constructor(
     @InjectRepository(Credencial)
     private readonly credencialRepository: Repository<Credencial>,
+    @InjectRepository(AuditoriaEvento)
+    private readonly auditoriaRepo: Repository<AuditoriaEvento>,
     private readonly jwtService: JwtService,
   ) {}
 
-  async login(loginDto: LoginDto) {
+  private async registrarAuditoria(datos: {
+    usuario: string;
+    registroId?: number;
+    operacion: 'LOGIN' | 'LOGIN_FALLIDO';
+    ip: string;
+    host: string;
+    descripcion: string;
+  }) {
+    try {
+      const evento = this.auditoriaRepo.create({
+        tablaAfectada: 'CREDENCIAL',
+        registroId: datos.registroId || null,
+        operacion: datos.operacion,
+        modulo: 'SEGURIDAD',
+        usuarioBd: datos.usuario,
+        ipCliente: datos.ip,
+        host: datos.host,
+        fechaEvento: new Date(),
+        descripcion: datos.descripcion,
+      });
+      await this.auditoriaRepo.save(evento);
+    } catch (err) {
+      this.logger.warn('No se pudo asentar el evento de auditoría de login', err);
+    }
+  }
+
+  async login(loginDto: LoginDto, clientIp: string = '127.0.0.1', host: string = 'localhost') {
     const username = loginDto.username.trim();
 
     // Consultamos la credencial cargando explícitamente passwordHash (por tener select: false)
@@ -37,6 +66,13 @@ export class AuthService {
       .getOne();
 
     if (!credencial) {
+      await this.registrarAuditoria({
+        usuario: username,
+        operacion: 'LOGIN_FALLIDO',
+        ip: clientIp,
+        host,
+        descripcion: `Intento de inicio de sesión fallido. El usuario '${username}' no existe.`,
+      });
       throw new UnauthorizedException('Credenciales incorrectas');
     }
 
@@ -90,12 +126,29 @@ export class AuthService {
     }
 
     if (!isPasswordValid) {
+      await this.registrarAuditoria({
+        usuario: username,
+        operacion: 'LOGIN_FALLIDO',
+        ip: clientIp,
+        host,
+        descripcion: `Intento de inicio de sesión fallido con contraseña incorrecta para usuario '${username}'.`,
+      });
       throw new UnauthorizedException('Credenciales incorrectas');
     }
 
     // Actualizar último login
     credencial.ultimoLogin = new Date();
     await this.credencialRepository.save(credencial);
+
+    // Asentar auditoría forense con el operador real
+    await this.registrarAuditoria({
+      usuario: credencial.username,
+      registroId: credencial.credencialId,
+      operacion: 'LOGIN',
+      ip: clientIp,
+      host,
+      descripcion: `Inicio de sesión exitoso. Rol: ${credencial.rol?.nombre || 'USUARIO'}, Sucursal: ${credencial.empleado?.sucursal?.nombre || 'Central'}.`,
+    });
 
     // Construir el payload del token JWT
     const payload: JwtPayload = {
@@ -107,6 +160,7 @@ export class AuthService {
         : credencial.username,
       rol: credencial.rol?.nombre ?? 'SIN_ROL',
       sucursalId: credencial.empleado?.sucursal?.sucursalId ?? null,
+      tipoSucursal: credencial.empleado?.sucursal?.tipoSucursal ?? null,
     };
 
     const accessToken = this.jwtService.sign(payload);
@@ -122,6 +176,7 @@ export class AuthService {
         rol: credencial.rol?.nombre,
         sucursal: credencial.empleado?.sucursal?.nombre,
         sucursalId: credencial.empleado?.sucursal?.sucursalId,
+        tipoSucursal: credencial.empleado?.sucursal?.tipoSucursal ?? null,
         ultimoLogin: credencial.ultimoLogin,
       },
     };

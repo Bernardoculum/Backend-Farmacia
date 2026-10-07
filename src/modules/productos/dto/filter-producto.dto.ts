@@ -39,4 +39,9 @@ export class FilterProductoDto {
   @IsNumber()
   @Min(1)
   limit?: number = 20;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  sucursalId?: number;
 }

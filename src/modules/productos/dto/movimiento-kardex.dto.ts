@@ -23,9 +23,9 @@ export class MovimientoKardexDto {
   @MaxLength(80)
   numeroLote: string;
 
-  @IsNotEmpty({ message: 'La fecha de vencimiento es obligatoria' })
+  @IsOptional()
   @IsDateString({}, { message: 'La fecha de vencimiento debe tener formato de fecha válido (YYYY-MM-DD)' })
-  fechaVencimiento: string;
+  fechaVencimiento?: string;
 
   @IsOptional()
   @IsDateString({}, { message: 'La fecha de fabricación debe tener formato de fecha válido' })

@@ -1,10 +1,13 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, IsOptional, IsEmail, IsNumber } from 'class-validator';
+import { IsNotEmpty, IsString, IsOptional, IsEmail, IsNumber, Matches } from 'class-validator';
 
 export class CreateClienteDto {
   @ApiProperty({ example: 'Carlos', description: 'Nombre del cliente' })
   @IsNotEmpty({ message: 'El nombre es obligatorio' })
   @IsString()
+  @Matches(/^(?!\s*\d+\s*$).+$/, {
+    message: 'El nombre no puede estar compuesto únicamente por números (ej. 323)',
+  })
   nombre: string;
 
   @ApiPropertyOptional({ example: 'Mendoza', description: 'Apellido del cliente' })
@@ -20,6 +23,9 @@ export class CreateClienteDto {
   @ApiProperty({ example: '14 Calle 3-45 Zona 10', description: 'Dirección física para entregas' })
   @IsNotEmpty({ message: 'La dirección es obligatoria' })
   @IsString()
+  @Matches(/^(?!\s*\d+\s*$).+$/, {
+    message: 'La dirección no puede estar compuesta únicamente por números (ej. 323)',
+  })
   direccion: string;
 
   @ApiPropertyOptional({ example: 'Frente al parque central', description: 'Punto de referencia' })

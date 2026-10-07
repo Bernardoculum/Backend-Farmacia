@@ -10,6 +10,7 @@ export interface JwtPayload {
   nombreCompleto: string;
   rol: string;
   sucursalId?: number | null;
+  tipoSucursal?: string | null;
 }
 
 @Injectable()
@@ -36,6 +37,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       nombreCompleto: payload.nombreCompleto,
       rol: payload.rol,
       sucursalId: payload.sucursalId,
+      tipoSucursal: payload.tipoSucursal,
     };
   }
 }

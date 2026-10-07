@@ -18,5 +18,7 @@
     "skipLibCheck": true,
     "strict": true,
     "strictPropertyInitialization": false
-  }
+  },
+  "include": ["src/**/*", "test/**/*"],
+  "exclude": ["node_modules", "dist", "scratch"]
 }

@@ -20,6 +20,9 @@ export class Laboratorio {
   @PrimaryGeneratedColumn({ type: "number", name: "LABORATORIO_ID" })
   laboratorioId: number;
 
+  @Column("varchar2", { name: "ESTADO", length: 20, default: () => "'ACTIVO'" })
+  estado: string;
+
   @OneToMany(() => Producto, (producto) => producto.laboratorio)
   productos: Producto[];
 }

@@ -99,6 +99,11 @@ export class KardexService {
       });
 
       if (!lote) {
+        if (!dto.fechaVencimiento) {
+          throw new BadRequestException(
+            `El lote "${dto.numeroLote}" no existe en el catálogo. La fecha de vencimiento es requerida para darlo de alta.`,
+          );
+        }
         lote = manager.create(Lote, {
           productoId: dto.productoId,
           numeroLote: dto.numeroLote.trim(),

@@ -8,6 +8,7 @@ import {
   Query,
   UseGuards,
   ParseIntPipe,
+  Req,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { PedidosService } from './pedidos.service';
@@ -20,6 +21,8 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { Role } from '../../common/enums/role.enum';
+
+import { BranchScope, BranchScopeContext } from '../../common/branch-scope';
 
 @ApiTags('Ventas & Pedidos (POS y Call Center)')
 @ApiBearerAuth('JWT-auth')
@@ -41,7 +44,18 @@ export class PedidosController {
 
   @Get()
   @ApiOperation({ summary: 'Listar pedidos y ventas con filtros (origen, sucursal, estado) y paginación' })
-  findAll(@Query() filterDto: FilterPedidoDto) {
+  findAll(
+    @Query() filterDto: FilterPedidoDto,
+    @BranchScope() scope: BranchScopeContext,
+  ) {
+    const isGlobalOrCallCenter =
+      scope.isGlobal ||
+      scope.userRol === Role.CALL_CENTER ||
+      scope.userRol === 'CALL_CENTER';
+
+    if (!isGlobalOrCallCenter) {
+      filterDto.sucursalId = scope.effectiveSucursalId;
+    }
     return this.pedidosService.findAll(filterDto);
   }
 

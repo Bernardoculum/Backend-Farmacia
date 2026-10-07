@@ -128,34 +128,47 @@ export class PedidosService {
         let inventarioLote: Inventario | null = null;
 
         if (item.loteId) {
-          // Lote explícito
+          // Lote explícito: validar que no esté vencido
           loteSeleccionado = await manager.findOne(Lote, { where: { loteId: item.loteId } });
           if (!loteSeleccionado) {
             throw new NotFoundException(`Lote con ID ${item.loteId} no encontrado`);
           }
+
+          const hoy = new Date();
+          hoy.setHours(0, 0, 0, 0);
+          const venc = new Date(loteSeleccionado.fechaVencimiento);
+          venc.setHours(0, 0, 0, 0);
+          if (venc.getTime() < hoy.getTime()) {
+            throw new BadRequestException(
+              `Operación bloqueada: El lote ${loteSeleccionado.numeroLote} caducó el ${loteSeleccionado.fechaVencimiento} y su venta está prohibida por normas sanitarias.`,
+            );
+          }
+
           inventarioLote = await manager.findOne(Inventario, {
             where: { loteId: loteSeleccionado.loteId, sucursalId: dto.sucursalId },
           });
         } else {
-          // Regla FEFO: Buscar lote vigente que vence primero con stock en esa sucursal
+          // Regla FEFO: Buscar lote vigente que vence primero con stock en esa sucursal (excluyendo vencidos)
           const qb = manager
             .createQueryBuilder(Inventario, 'inv')
             .innerJoinAndSelect('inv.lote', 'lote')
             .where('inv.sucursalId = :sucursalId', { sucursalId: dto.sucursalId })
             .andWhere('lote.productoId = :productoId', { productoId: item.productoId })
             .andWhere('inv.cantidadDisponible >= :cant', { cant: item.cantidad })
+            .andWhere('lote.fechaVencimiento >= CURRENT_DATE')
             .orderBy('lote.fechaVencimiento', 'ASC');
 
           inventarioLote = await qb.getOne();
 
           if (!inventarioLote) {
-            // Intentar con cualquier lote disponible
+            // Fallback con cualquier lote disponible no vencido
             const qbFallback = manager
               .createQueryBuilder(Inventario, 'inv')
               .innerJoinAndSelect('inv.lote', 'lote')
               .where('inv.sucursalId = :sucursalId', { sucursalId: dto.sucursalId })
               .andWhere('lote.productoId = :productoId', { productoId: item.productoId })
               .andWhere('inv.cantidadDisponible > 0')
+              .andWhere('lote.fechaVencimiento >= CURRENT_DATE')
               .orderBy('lote.fechaVencimiento', 'ASC');
 
             inventarioLote = await qbFallback.getOne();
@@ -295,7 +308,7 @@ export class PedidosService {
       .createQueryBuilder('p')
       .innerJoinAndSelect('p.cliente', 'c')
       .innerJoinAndSelect('p.metodoPago', 'mp')
-      .innerJoinAndSelect('p.sucursalPreparacion', 'suc')
+      .leftJoinAndSelect('p.sucursalPreparacion', 'suc')
       .leftJoinAndSelect('p.pedidoDetalles', 'det')
       .leftJoinAndSelect('det.producto', 'prod')
       .leftJoinAndSelect('det.lote', 'lote')
@@ -343,8 +356,13 @@ export class PedidosService {
         telefono: p.cliente?.telefono,
         direccion: p.cliente?.direccion,
       },
-      sucursal: p.sucursalPreparacion?.nombre,
-      sucursalId: p.sucursalPreparacion?.sucursalId,
+      sucursal: {
+        sucursalId: p.sucursalPreparacion?.sucursalId || 1,
+        nombre: p.sucursalPreparacion?.nombre || 'Sucursal Central (Atanasio Tzul Z.12)',
+        direccion: p.sucursalPreparacion?.direccion,
+        telefono: p.sucursalPreparacion?.telefono,
+      },
+      sucursalId: p.sucursalPreparacion?.sucursalId || 1,
       metodoPago: p.metodoPago?.nombre,
       entrega: p.entrega
         ? {

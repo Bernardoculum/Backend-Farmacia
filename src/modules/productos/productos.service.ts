@@ -29,6 +29,7 @@ export class ProductosService {
       laboratorioId,
       requiereReceta,
       estado = 'ACTIVO',
+      sucursalId,
       page = 1,
       limit = 20,
     } = filterDto;
@@ -73,8 +74,8 @@ export class ProductosService {
 
     const [productos, total] = await query.getManyAndCount();
 
-    // Mapeo limpio y desacoplado mediante ProductoMapper
-    const data = productos.map(ProductoMapper.toListItem);
+    // Mapeo limpio y desacoplado mediante ProductoMapper (aislando por sucursal si corresponde)
+    const data = productos.map((p) => ProductoMapper.toListItem(p, sucursalId));
 
     return {
       data,
