@@ -33,6 +33,13 @@ export class UsersController {
     return this.usersService.getRoles();
   }
 
+  @Get('colaboradores-disponibles')
+  @Roles(Role.SUPER_ADMIN, Role.GERENTE_SUCURSAL)
+  @ApiOperation({ summary: 'Listado de colaboradores de nómina que aún no tienen credencial de acceso' })
+  async getColaboradoresDisponibles(@BranchScope() scope: BranchScopeContext) {
+    return this.usersService.getColaboradoresDisponibles(scope.isGlobal ? undefined : scope.effectiveSucursalId);
+  }
+
   @Get()
   @Roles(Role.SUPER_ADMIN, Role.GERENTE_SUCURSAL, Role.AUDITOR)
   @ApiOperation({ summary: 'Listado paginado de usuarios con KPIs y filtros' })

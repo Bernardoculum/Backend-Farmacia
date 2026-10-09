@@ -16,6 +16,8 @@ import { Producto } from '../../database/entities/Producto';
 import { Lote } from '../../database/entities/Lote';
 import { Inventario } from '../../database/entities/Inventario';
 import { MovimientoInventario } from '../../database/entities/MovimientoInventario';
+import { SesionCaja } from '../../database/entities/SesionCaja';
+import { MovimientoCaja } from '../../database/entities/MovimientoCaja';
 import { CreatePedidoDto } from './dto/create-pedido.dto';
 import { CreateClienteDto } from './dto/create-cliente.dto';
 import { UpdateEstadoPedidoDto } from './dto/update-estado-pedido.dto';
@@ -74,6 +76,25 @@ export class PedidosService {
       });
       if (!metodoPago) {
         throw new NotFoundException(`Método de pago con ID ${dto.metodoPagoId} no encontrado`);
+      }
+
+      // 2.1 En ventas de Mostrador (POS), exigir obligatoriamente una Sesión de Caja Abierta
+      let sesionCajaActiva: SesionCaja | null = null;
+      if (dto.origen === 'MOSTRADOR') {
+        sesionCajaActiva = await manager
+          .createQueryBuilder(SesionCaja, 's')
+          .innerJoinAndSelect('s.caja', 'caja')
+          .leftJoinAndSelect('s.empleadoApertura', 'emp')
+          .where('s.estado = :estado', { estado: 'ABIERTA' })
+          .andWhere('caja.sucursalId = :sucursalId', { sucursalId: dto.sucursalId })
+          .orderBy('s.sesionCajaId', 'DESC')
+          .getOne();
+
+        if (!sesionCajaActiva) {
+          throw new BadRequestException(
+            `Operación bloqueada: No existe una sesión de caja abierta en "${sucursal.nombre}". Debe realizar la apertura de turno en el módulo de Cajas antes de cobrar ventas en mostrador.`,
+          );
+        }
       }
 
       // 3. Resolver Cliente
@@ -185,6 +206,16 @@ export class PedidosService {
           );
         }
 
+        // Concurrencia y Bloqueo Pesimista (SELECT ... FOR UPDATE) para prevenir condiciones de carrera (Race Condition)
+        const invBloqueado = await manager.findOne(Inventario, {
+          where: { inventarioId: inventarioLote.inventarioId },
+          lock: { mode: 'pessimistic_write' },
+        });
+        if (!invBloqueado) {
+          throw new BadRequestException('El registro de inventario ya no se encuentra disponible.');
+        }
+        inventarioLote = invBloqueado;
+
         const disponibleActual = Number(inventarioLote.cantidadDisponible) || 0;
         if (disponibleActual < item.cantidad) {
           throw new BadRequestException(
@@ -250,6 +281,25 @@ export class PedidosService {
           subtotal: it.subtotal,
         });
         await manager.save(detalle);
+      }
+
+      // 6.1 Si fue venta de Mostrador (POS), asentar ingreso a la sesión de caja activa
+      if (sesionCajaActiva) {
+        sesionCajaActiva.totalIngresos = Number(sesionCajaActiva.totalIngresos || 0) + Number(totalPedido);
+        await manager.save(sesionCajaActiva);
+
+        const movCaja = manager.create(MovimientoCaja, {
+          tipoMovimiento: 'INGRESO',
+          monto: Number(totalPedido),
+          descripcion: `Cobro Venta POS Mostrador #${pedidoGuardado.pedidoId} (${metodoPago.nombre})`,
+          referenciaTipo: 'VENTA_POS',
+          referenciaId: pedidoGuardado.pedidoId,
+          fechaMovimiento: new Date(),
+          sesionCaja: sesionCajaActiva,
+          metodoPago,
+          empleado: sesionCajaActiva.empleadoApertura || undefined,
+        });
+        await manager.save(movCaja);
       }
 
       // 7. Si es Call Center, Portal Web o Teléfono, crear Entrega a Domicilio

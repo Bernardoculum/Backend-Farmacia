@@ -25,6 +25,10 @@ export class BranchScopeService {
       return true;
     }
 
+    if (rol === Role.CALL_CENTER || rol === 'CALL_CENTER') {
+      return true;
+    }
+
     return false;
   }
 

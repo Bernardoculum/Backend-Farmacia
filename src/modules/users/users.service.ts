@@ -71,6 +71,40 @@ export class UsersService {
   }
 
   /**
+   * Obtiene la lista de colaboradores activos en nómina que aún no tienen credencial de acceso
+   */
+  async getColaboradoresDisponibles(sucursalId?: number) {
+    const qb = this.empleadoRepo
+      .createQueryBuilder('emp')
+      .leftJoin('emp.credencial', 'cred')
+      .leftJoinAndSelect('emp.sucursal', 'suc')
+      .leftJoinAndSelect('emp.puesto', 'puesto')
+      .where('cred.credencialId IS NULL')
+      .andWhere('emp.estado = :estado', { estado: 'ACTIVO' });
+
+    if (sucursalId) {
+      qb.andWhere('suc.sucursalId = :sucursalId', { sucursalId });
+    }
+
+    qb.orderBy('emp.nombre', 'ASC').addOrderBy('emp.apellido', 'ASC');
+
+    const lista = await qb.getMany();
+    return lista.map((e) => ({
+      empleadoId: e.empleadoId,
+      nombre: e.nombre,
+      apellido: e.apellido,
+      nombreCompleto: `${e.nombre} ${e.apellido}`.trim(),
+      dpi: e.dpi || '',
+      telefono: e.telefono || '',
+      email: e.email || '',
+      sucursalId: e.sucursal?.sucursalId || null,
+      sucursalNombre: e.sucursal?.nombre || 'Sin Sede',
+      puestoId: e.puesto?.puestoId || null,
+      puestoNombre: e.puesto?.nombre || 'General',
+    }));
+  }
+
+  /**
    * Listado paginado de usuarios con KPIs y filtros
    */
   async findAll(filters: FilterUserDto) {
@@ -105,19 +139,31 @@ export class UsersService {
       qb.andWhere('cred.estado = :estado', { estado: filters.estado });
     }
 
+    // Excluir cuenta Break-Glass de respaldo de la lista visual general de colaboradores (Opción 2)
+    qb.andWhere('LOWER(cred.username) != :breakGlassUser', { breakGlassUser: 'bernardo' });
+
     qb.orderBy('cred.credencialId', 'DESC');
     qb.skip(skip).take(limit);
 
     const [items, total] = await qb.getManyAndCount();
 
-    // KPIs globales de usuarios
-    const totalCount = await this.credencialRepo.count();
-    const activosCount = await this.credencialRepo.count({ where: { estado: 'ACTIVO' } });
+    // KPIs globales de usuarios (excluyendo cuenta técnica de respaldo)
+    const totalCount = await this.credencialRepo
+      .createQueryBuilder('cred')
+      .where('LOWER(cred.username) != :bg', { bg: 'bernardo' })
+      .getCount();
+
+    const activosCount = await this.credencialRepo
+      .createQueryBuilder('cred')
+      .where('LOWER(cred.username) != :bg AND cred.estado = :est', { bg: 'bernardo', est: 'ACTIVO' })
+      .getCount();
+
     const inactivosCount = totalCount - activosCount;
+
     const superAdminsCount = await this.credencialRepo
       .createQueryBuilder('cred')
       .innerJoin('cred.rol', 'rol')
-      .where('rol.nombre = :rolNombre', { rolNombre: 'SUPER_ADMIN' })
+      .where('rol.nombre = :rolNombre AND LOWER(cred.username) != :bg', { rolNombre: 'SUPER_ADMIN', bg: 'bernardo' })
       .getCount();
 
     const data = items.map((c) => ({
@@ -195,6 +241,7 @@ export class UsersService {
 
   /**
    * Crear un nuevo usuario en una transacción atómica única
+   * Permite vincular a un colaborador existente en nómina o registrar uno nuevo desde cero
    */
   async create(dto: CreateUserDto, operadorUser: string = 'SYSTEM') {
     const cleanUsername = dto.username.trim().toLowerCase();
@@ -207,6 +254,69 @@ export class UsersService {
       throw new ConflictException(`El nombre de usuario "${cleanUsername}" ya está en uso.`);
     }
 
+    // Validar existencia de Rol
+    const rol = await this.rolRepo.findOne({ where: { rolId: dto.rolId } });
+    if (!rol) throw new NotFoundException(`El rol con ID ${dto.rolId} no existe.`);
+
+    // Hashear contraseña con bcrypt
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(dto.password, salt);
+
+    // =========================================================================
+    // CASO 1: Vincular a Colaborador de Nómina Existente
+    // =========================================================================
+    if (dto.empleadoId) {
+      const empleado = await this.empleadoRepo.findOne({
+        where: { empleadoId: dto.empleadoId },
+        relations: { sucursal: true, credencial: true },
+      });
+
+      if (!empleado) {
+        throw new NotFoundException(`El colaborador con ID ${dto.empleadoId} no fue encontrado.`);
+      }
+
+      if (empleado.credencial) {
+        throw new ConflictException(
+          `El colaborador ${empleado.nombre} ${empleado.apellido} ya tiene asignada la cuenta de usuario "${empleado.credencial.username}".`,
+        );
+      }
+
+      return this.dataSource.transaction(async (manager) => {
+        const nuevaCredencial = manager.create(Credencial, {
+          username: cleanUsername,
+          passwordHash,
+          estado: 'ACTIVO',
+          fechaRegistro: new Date(),
+          empleado,
+          rol,
+        });
+        const credencialGuardada = await manager.save(nuevaCredencial);
+
+        await this.registrarAuditoria({
+          usuario: operadorUser,
+          registroId: credencialGuardada.credencialId,
+          operacion: 'INSERT',
+          descripcion: `Vinculación de credencial '${cleanUsername}' con rol '${rol.nombre}' para colaborador existente #${empleado.empleadoId} (${empleado.nombre} ${empleado.apellido}).`,
+        });
+
+        return {
+          message: `Usuario "${cleanUsername}" vinculado exitosamente a ${empleado.nombre} ${empleado.apellido}`,
+          credencialId: credencialGuardada.credencialId,
+          username: credencialGuardada.username,
+        };
+      });
+    }
+
+    // =========================================================================
+    // CASO 2: Registrar Nuevo Colaborador desde Cero
+    // =========================================================================
+    if (!dto.nombre?.trim() || !dto.apellido?.trim()) {
+      throw new BadRequestException('El nombre y apellido son obligatorios para crear un nuevo colaborador.');
+    }
+    if (!dto.sucursalId) {
+      throw new BadRequestException('La sucursal es obligatoria para crear un nuevo colaborador.');
+    }
+
     // Validar existencia de DPI si se proveyó
     if (dto.dpi?.trim()) {
       const existeDpi = await this.empleadoRepo.findOne({
@@ -216,10 +326,6 @@ export class UsersService {
         throw new ConflictException(`Ya existe un empleado con el DPI "${dto.dpi.trim()}".`);
       }
     }
-
-    // Validar existencia de Rol y Sucursal
-    const rol = await this.rolRepo.findOne({ where: { rolId: dto.rolId } });
-    if (!rol) throw new NotFoundException(`El rol con ID ${dto.rolId} no existe.`);
 
     const sucursal = await this.sucursalRepo.findOne({ where: { sucursalId: dto.sucursalId } });
     if (!sucursal) throw new NotFoundException(`La sucursal con ID ${dto.sucursalId} no existe.`);
@@ -234,15 +340,11 @@ export class UsersService {
       puesto = puestos[0] || null;
     }
 
-    // Hashear contraseña con bcrypt
-    const salt = await bcrypt.genSalt(10);
-    const passwordHash = await bcrypt.hash(dto.password, salt);
-
     return this.dataSource.transaction(async (manager) => {
       // 1. Crear Empleado
       const nuevoEmpleado = manager.create(Empleado, {
-        nombre: dto.nombre.trim(),
-        apellido: dto.apellido.trim(),
+        nombre: dto.nombre!.trim(),
+        apellido: dto.apellido!.trim(),
         dpi: dto.dpi?.trim() || null,
         telefono: dto.telefono?.trim() || null,
         salarioActual: 3500.0, // Salario base inicial estándar
@@ -299,13 +401,20 @@ export class UsersService {
       throw new NotFoundException(`Usuario con ID ${id} no encontrado.`);
     }
 
+    if (credencial.username.toLowerCase() === 'bernardo' && operadorUser.toLowerCase() !== 'bernardo') {
+      throw new BadRequestException('Operación no permitida: La cuenta de respaldo Break-Glass no puede ser alterada por otros usuarios.');
+    }
+
     // Regla de seguridad: Si es tu propia cuenta en sesión
     if (operadorId && id === operadorId) {
       if (dto.estado && dto.estado === 'INACTIVO') {
         throw new BadRequestException('Operación no permitida: No puedes desactivar tu propia cuenta activa.');
       }
-      if (dto.rolId && credencial.rol?.rolId && dto.rolId !== credencial.rol.rolId && credencial.rol.nombre === 'SUPER_ADMIN') {
-        throw new BadRequestException('Operación no permitida: No puedes revocar tu propio rol de Super Administrador.');
+      if (dto.rolId && credencial.rol?.rolId && dto.rolId !== credencial.rol.rolId) {
+        throw new BadRequestException('Operación no permitida: No puedes modificar tu propio rol de usuario. Solo otro Administrador puede cambiar tu rol.');
+      }
+      if (dto.username && dto.username.trim().toLowerCase() !== credencial.username.toLowerCase()) {
+        throw new BadRequestException('Operación no permitida: No puedes modificar tu propio nombre de usuario en sesión activa.');
       }
     }
 
@@ -395,6 +504,10 @@ export class UsersService {
 
     if (!credencial) {
       throw new NotFoundException(`Usuario con ID ${id} no encontrado.`);
+    }
+
+    if (credencial.username.toLowerCase() === 'bernardo') {
+      throw new BadRequestException('Operación no permitida: La cuenta de respaldo de emergencia (Break-Glass) no puede ser desactivada.');
     }
 
     const nuevoEstado = credencial.estado === 'ACTIVO' ? 'INACTIVO' : 'ACTIVO';

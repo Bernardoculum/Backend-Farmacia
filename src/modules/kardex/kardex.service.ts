@@ -100,7 +100,9 @@ export class KardexService {
       .getCount();
     const mermasKpi = await kpiQb
       .clone()
-      .andWhere('mov.referenciaTipo = :ref', { ref: 'MERMA_CADUCIDAD' })
+      .andWhere('mov.referenciaTipo IN (:...mermasRefs)', {
+        mermasRefs: ['MERMA_CADUCIDAD', 'MERMA_TRANSITO'],
+      })
       .getCount();
 
     const data = items.map((m) => ({

@@ -10,15 +10,21 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
 export class CreateUserDto {
-  @ApiProperty({ description: 'Nombres del colaborador', example: 'Carlos Alberto' })
-  @IsNotEmpty({ message: 'El nombre es obligatorio' })
-  @IsString()
-  nombre: string;
+  @ApiPropertyOptional({ description: 'ID de colaborador existente en nómina (opcional)', example: 5 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  empleadoId?: number;
 
-  @ApiProperty({ description: 'Apellidos del colaborador', example: 'Gómez Morales' })
-  @IsNotEmpty({ message: 'El apellido es obligatorio' })
+  @ApiPropertyOptional({ description: 'Nombres del colaborador', example: 'Carlos Alberto' })
+  @IsOptional()
   @IsString()
-  apellido: string;
+  nombre?: string;
+
+  @ApiPropertyOptional({ description: 'Apellidos del colaborador', example: 'Gómez Morales' })
+  @IsOptional()
+  @IsString()
+  apellido?: string;
 
   @ApiPropertyOptional({ description: 'Documento Personal de Identificación (DPI)', example: '2541987450101' })
   @IsOptional()
@@ -48,11 +54,11 @@ export class CreateUserDto {
   @IsNumber()
   rolId: number;
 
-  @ApiProperty({ description: 'ID de la sucursal asignada', example: 1 })
-  @IsNotEmpty({ message: 'La sucursal es obligatoria' })
+  @ApiPropertyOptional({ description: 'ID de la sucursal asignada', example: 1 })
+  @IsOptional()
   @Type(() => Number)
   @IsNumber()
-  sucursalId: number;
+  sucursalId?: number;
 
   @ApiPropertyOptional({ description: 'ID del puesto laboral', example: 1 })
   @IsOptional()

@@ -87,9 +87,9 @@ export class CreateEmpleadoDto {
   @IsString()
   banco?: string;
 
-  @ApiPropertyOptional({ example: '028-123456-7' })
+  @ApiPropertyOptional({ example: '0281234567' })
   @IsOptional()
-  @IsString()
+  @Matches(/^[0-9]{8,14}$/, { message: 'El número de cuenta bancaria debe contener entre 8 y 14 dígitos numéricos' })
   numeroCuenta?: string;
 
   @ApiPropertyOptional({ example: 'empleado@redfarma.com' })
@@ -160,6 +160,7 @@ export class UpdateEmpleadoDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @Matches(/^[0-9]{8,14}$/, { message: 'El número de cuenta bancaria debe contener entre 8 y 14 dígitos numéricos' })
   numeroCuenta?: string;
 
   @ApiPropertyOptional()

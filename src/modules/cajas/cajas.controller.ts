@@ -59,6 +59,16 @@ export class CajasController {
     return this.cajasService.findAllSesiones(filters);
   }
 
+  @Get('sesion-activa')
+  @ApiOperation({ summary: 'Consultar si existe una sesión de caja actualmente abierta para la sucursal' })
+  findSesionActiva(
+    @BranchScope() scope: BranchScopeContext,
+    @Req() req: any,
+  ) {
+    const sucursalId = scope.effectiveSucursalId || req.user?.sucursalId;
+    return this.cajasService.findSesionActiva(sucursalId);
+  }
+
   @Get('sesiones/:id')
   @ApiOperation({ summary: 'Consultar detalle completo de una sesión de caja con sus movimientos y métodos de pago' })
   findOneSesion(@Param('id', ParseIntPipe) id: number) {

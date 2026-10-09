@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNumber, Min, IsArray, ValidateNested, IsOptional } from 'class-validator';
+import { IsNumber, Min, IsArray, ValidateNested, IsOptional, IsString } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class RecibirItemDto {
@@ -11,6 +11,11 @@ export class RecibirItemDto {
   @IsNumber()
   @Min(0, { message: 'La cantidad recibida no puede ser negativa' })
   cantidadRecibida: number;
+
+  @ApiPropertyOptional({ description: 'Motivo o detalle de merma/rotura si la cantidad es menor a la enviada' })
+  @IsOptional()
+  @IsString()
+  motivoMerma?: string;
 }
 
 export class RecibirTransferenciaDto {
@@ -23,4 +28,10 @@ export class RecibirTransferenciaDto {
   @ValidateNested({ each: true })
   @Type(() => RecibirItemDto)
   items?: RecibirItemDto[];
+
+  @ApiPropertyOptional({ description: 'Observación general al momento de recibir la transferencia' })
+  @IsOptional()
+  @IsString()
+  observacionRecepcion?: string;
 }
+

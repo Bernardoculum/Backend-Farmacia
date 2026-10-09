@@ -253,6 +253,43 @@ export class CajasService {
   }
 
   /**
+   * Consulta si existe una sesión de caja actualmente abierta para una sucursal
+   */
+  async findSesionActiva(sucursalId?: number) {
+    const qb = this.sesionRepo
+      .createQueryBuilder('s')
+      .leftJoinAndSelect('s.caja', 'caja')
+      .leftJoinAndSelect('s.empleadoApertura', 'emp')
+      .where('s.estado = :estado', { estado: 'ABIERTA' });
+
+    if (sucursalId) {
+      qb.andWhere('caja.sucursalId = :sucursalId', { sucursalId });
+    }
+
+    qb.orderBy('s.sesionCajaId', 'DESC');
+    const sesion = await qb.getOne();
+
+    if (!sesion) {
+      return null;
+    }
+
+    return {
+      sesionCajaId: sesion.sesionCajaId,
+      cajaId: sesion.caja?.cajaId,
+      codigoCaja: sesion.caja?.codigoCaja || 'Caja 1',
+      sucursalId: sesion.caja?.sucursalId,
+      estado: sesion.estado,
+      saldoInicial: Number(sesion.saldoInicial || 0),
+      totalIngresos: Number(sesion.totalIngresos || 0),
+      totalEgresos: Number(sesion.totalEgresos || 0),
+      fechaApertura: sesion.fechaApertura,
+      cajero: sesion.empleadoApertura
+        ? `${sesion.empleadoApertura.nombre} ${sesion.empleadoApertura.apellido}`.trim()
+        : 'Cajero',
+    };
+  }
+
+  /**
    * Detalle completo de una sesión de caja con sus movimientos
    */
   async findOneSesion(id: number) {

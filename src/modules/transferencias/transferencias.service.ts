@@ -108,11 +108,18 @@ export class TransferenciasService {
       let totalUnidadesSolicitadas = 0;
       let totalUnidadesEnviadas = 0;
       let totalUnidadesRecibidas = 0;
+      let totalUnidadesMerma = 0;
 
       const items = (t.transferenciaDetalles || []).map((d) => {
-        totalUnidadesSolicitadas += Number(d.cantidadSolicitada) || 0;
-        totalUnidadesEnviadas += Number(d.cantidadEnviada) || 0;
-        totalUnidadesRecibidas += Number(d.cantidadRecibida) || 0;
+        const cantSol = Number(d.cantidadSolicitada) || 0;
+        const cantEnv = Number(d.cantidadEnviada) || 0;
+        const cantRec = Number(d.cantidadRecibida) || 0;
+        const cantMerma = t.estado === 'RECIBIDA' && cantEnv > cantRec ? cantEnv - cantRec : 0;
+
+        totalUnidadesSolicitadas += cantSol;
+        totalUnidadesEnviadas += cantEnv;
+        totalUnidadesRecibidas += cantRec;
+        totalUnidadesMerma += cantMerma;
 
         return {
           transferenciaDetalleId: d.transferenciaDetalleId,
@@ -122,9 +129,10 @@ export class TransferenciasService {
           medicamento: d.lote?.producto?.nombre || 'Medicamento',
           codigoProducto: d.lote?.producto?.codigoProducto,
           presentacion: d.lote?.producto?.presentacion,
-          cantidadSolicitada: Number(d.cantidadSolicitada),
-          cantidadEnviada: Number(d.cantidadEnviada),
-          cantidadRecibida: Number(d.cantidadRecibida),
+          cantidadSolicitada: cantSol,
+          cantidadEnviada: cantEnv,
+          cantidadRecibida: cantRec,
+          cantidadMerma: cantMerma,
         };
       });
 
@@ -150,6 +158,7 @@ export class TransferenciasService {
           totalUnidadesSolicitadas,
           totalUnidadesEnviadas,
           totalUnidadesRecibidas,
+          totalUnidadesMerma,
         },
         detalles: items,
       };
@@ -211,21 +220,29 @@ export class TransferenciasService {
         tipoSucursal: t.sucursalDestino.tipoSucursal,
         direccion: t.sucursalDestino.direccion,
       },
-      detalles: (t.transferenciaDetalles || []).map((d) => ({
-        transferenciaDetalleId: d.transferenciaDetalleId,
-        loteId: d.loteId,
-        numeroLote: d.lote?.numeroLote,
-        fechaVencimiento: d.lote?.fechaVencimiento,
-        productoId: d.lote?.producto?.productoId,
-        medicamento: d.lote?.producto?.nombre,
-        codigoProducto: d.lote?.producto?.codigoProducto,
-        concentracion: d.lote?.producto?.concentracion,
-        presentacion: d.lote?.producto?.presentacion,
-        costoUnitario: Number(d.lote?.costoUnitario || 0),
-        cantidadSolicitada: Number(d.cantidadSolicitada),
-        cantidadEnviada: Number(d.cantidadEnviada),
-        cantidadRecibida: Number(d.cantidadRecibida),
-      })),
+      detalles: (t.transferenciaDetalles || []).map((d) => {
+        const cantSol = Number(d.cantidadSolicitada);
+        const cantEnv = Number(d.cantidadEnviada);
+        const cantRec = Number(d.cantidadRecibida);
+        const cantMerma = t.estado === 'RECIBIDA' && cantEnv > cantRec ? cantEnv - cantRec : 0;
+
+        return {
+          transferenciaDetalleId: d.transferenciaDetalleId,
+          loteId: d.loteId,
+          numeroLote: d.lote?.numeroLote,
+          fechaVencimiento: d.lote?.fechaVencimiento,
+          productoId: d.lote?.producto?.productoId,
+          medicamento: d.lote?.producto?.nombre,
+          codigoProducto: d.lote?.producto?.codigoProducto,
+          concentracion: d.lote?.producto?.concentracion,
+          presentacion: d.lote?.producto?.presentacion,
+          costoUnitario: Number(d.lote?.costoUnitario || 0),
+          cantidadSolicitada: cantSol,
+          cantidadEnviada: cantEnv,
+          cantidadRecibida: cantRec,
+          cantidadMerma: cantMerma,
+        };
+      }),
     };
   }
 
@@ -494,34 +511,34 @@ export class TransferenciasService {
         det.cantidadRecibida = cantRec;
         await manager.save(det);
 
-        // Si se recibió mercancía física, sumar a Inventario de Destino
-        if (cantRec > 0) {
-          let invDestino = await manager.findOne(Inventario, {
-            where: {
-              sucursalId: transferencia.sucursalDestino.sucursalId,
-              loteId: det.loteId,
-            },
+        // Obtener o inicializar inventario en sucursal destino
+        let invDestino = await manager.findOne(Inventario, {
+          where: {
+            sucursalId: transferencia.sucursalDestino.sucursalId,
+            loteId: det.loteId,
+          },
+        });
+
+        let cantAnterior = 0;
+        if (!invDestino) {
+          invDestino = manager.create(Inventario, {
+            sucursalId: transferencia.sucursalDestino.sucursalId,
+            loteId: det.loteId,
+            cantidadDisponible: cantRec,
+            cantidadReservada: 0,
+            stockMinimo: 0,
+            fechaActualizacion: new Date(),
           });
+        } else {
+          cantAnterior = Number(invDestino.cantidadDisponible);
+          invDestino.cantidadDisponible = cantAnterior + cantRec;
+          invDestino.fechaActualizacion = new Date();
+        }
 
-          let cantAnterior = 0;
-          if (!invDestino) {
-            invDestino = manager.create(Inventario, {
-              sucursalId: transferencia.sucursalDestino.sucursalId,
-              loteId: det.loteId,
-              cantidadDisponible: cantRec,
-              cantidadReservada: 0,
-              stockMinimo: 0,
-              fechaActualizacion: new Date(),
-            });
-          } else {
-            cantAnterior = Number(invDestino.cantidadDisponible);
-            invDestino.cantidadDisponible = cantAnterior + cantRec;
-            invDestino.fechaActualizacion = new Date();
-          }
+        const invGuardado = await manager.save(invDestino);
 
-          const invGuardado = await manager.save(invDestino);
-
-          // Registrar Kardex: Entrada por Transferencia
+        // Si se recibió mercancía física, sumar a Kardex: Entrada por Transferencia
+        if (cantRec > 0) {
           const mov = manager.create(MovimientoInventario, {
             inventario: invGuardado,
             tipoMovimiento: 'ENTRADA',
@@ -535,6 +552,33 @@ export class TransferenciasService {
           });
           await manager.save(mov);
         }
+
+        // Si hubo unidades no recibidas (merma o daño en tránsito), asentar en Kardex
+        const cantMerma = Number(det.cantidadEnviada) - cantRec;
+        if (cantMerma > 0) {
+          const itemDto = dto.items?.find((it) => it.transferenciaDetalleId === det.transferenciaDetalleId);
+          const motivoEsp = itemDto?.motivoMerma?.trim() || dto.observacionRecepcion?.trim() || 'Producto dañado o quebrado durante el transporte';
+
+          const movMerma = manager.create(MovimientoInventario, {
+            inventario: invGuardado,
+            tipoMovimiento: 'SALIDA',
+            cantidad: cantMerma,
+            cantidadAnterior: cantAnterior + cantRec,
+            cantidadNueva: cantAnterior + cantRec,
+            referenciaTipo: 'MERMA_TRANSITO',
+            referenciaId: transferencia.transferenciaId,
+            observacion: `Merma en transporte (${cantMerma} u. no recibidas de ${det.cantidadEnviada} u. enviadas): ${motivoEsp}. Traslado #${transferencia.transferenciaId} desde ${transferencia.sucursalOrigen.nombre}`,
+            fechaMovimiento: new Date(),
+          });
+          await manager.save(movMerma);
+        }
+      }
+
+      if (dto.observacionRecepcion && dto.observacionRecepcion.trim()) {
+        const obsTrim = dto.observacionRecepcion.trim();
+        transferencia.observacion = transferencia.observacion
+          ? `${transferencia.observacion} | Recep: ${obsTrim}`.substring(0, 500)
+          : `Recep: ${obsTrim}`.substring(0, 500);
       }
 
       transferencia.estado = 'RECIBIDA';
