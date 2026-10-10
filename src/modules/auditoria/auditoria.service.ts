@@ -32,6 +32,17 @@ export class AuditoriaService implements OnModuleInit {
       if (result.affected && result.affected > 0) {
         this.logger.log(`Se normalizaron ${result.affected} registros de auditoría de 'SYSTEM' a 'admin'.`);
       }
+
+      const ipResult = await this.auditoriaRepo
+        .createQueryBuilder()
+        .update(AuditoriaEvento)
+        .set({ ipCliente: '127.0.0.1' })
+        .where("ipCliente = '::1' OR ipCliente = '0:0:0:0:0:0:0:1' OR ipCliente LIKE '%::ffff:%' OR ipCliente IS NULL")
+        .execute();
+
+      if (ipResult.affected && ipResult.affected > 0) {
+        this.logger.log(`Se normalizaron ${ipResult.affected} registros de IP en bitácora a '127.0.0.1'.`);
+      }
     } catch (e) {
       this.logger.warn('No se pudo ejecutar la normalización de auditoría legacy', e);
     }
@@ -122,18 +133,24 @@ export class AuditoriaService implements OnModuleInit {
     const totalAjustes = await this.auditoriaRepo.count({ where: { operacion: 'AJUSTE_MANUAL' } });
 
     return {
-      data: items.map((i) => ({
-        auditoriaId: i.auditoriaId,
-        usuarioBd: i.usuarioBd || 'admin',
-        tablaAfectada: i.tablaAfectada,
-        registroId: i.registroId,
-        operacion: i.operacion,
-        modulo: i.modulo || 'SISTEMA',
-        ipCliente: i.ipCliente || '127.0.0.1',
-        host: i.host,
-        fechaEvento: i.fechaEvento,
-        descripcion: i.descripcion,
-      })),
+      data: items.map((i) => {
+        let ip = i.ipCliente || '127.0.0.1';
+        if (ip.startsWith('::ffff:')) ip = ip.substring(7);
+        if (ip === '::1' || ip === '0:0:0:0:0:0:0:1') ip = '127.0.0.1';
+
+        return {
+          auditoriaId: i.auditoriaId,
+          usuarioBd: i.usuarioBd || 'admin',
+          tablaAfectada: i.tablaAfectada,
+          registroId: i.registroId,
+          operacion: i.operacion,
+          modulo: i.modulo || 'SISTEMA',
+          ipCliente: ip,
+          host: i.host,
+          fechaEvento: i.fechaEvento,
+          descripcion: i.descripcion,
+        };
+      }),
       total,
       page,
       limit,

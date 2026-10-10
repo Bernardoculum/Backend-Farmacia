@@ -14,6 +14,7 @@ import { Empleado } from '../../database/entities/Empleado';
 import { Puesto } from '../../database/entities/Puesto';
 import { Sucursal } from '../../database/entities/Sucursal';
 import { HistorialSalario } from '../../database/entities/HistorialSalario';
+import { AuditoriaEvento } from '../../database/entities/AuditoriaEvento';
 import {
   GenerarPlanillaDto,
   CreateEmpleadoDto,
@@ -454,7 +455,7 @@ export class PlanillasService {
   /**
    * Crear empleado con todos los campos laborales y de pago
    */
-  async createEmpleado(dto: CreateEmpleadoDto) {
+  async createEmpleado(dto: CreateEmpleadoDto, user?: any, clientIp?: string, host?: string) {
     return this.dataSource.transaction(async (manager) => {
       const puesto = await manager.findOne(Puesto, { where: { puestoId: dto.puestoId } });
       if (!puesto) throw new NotFoundException(`Puesto con ID ${dto.puestoId} no encontrado`);
@@ -482,7 +483,7 @@ export class PlanillasService {
 
       const guardado = await manager.save(emp);
 
-      // Asiento en HistorialSalario
+      // Asiento en HistorialSalario (Capa 2: Snapshot de Negocio)
       const hist = manager.create(HistorialSalario, {
         empleado: guardado,
         salarioAnterior: 0,
@@ -491,6 +492,21 @@ export class PlanillasService {
         fechaCambio: new Date(),
       });
       await manager.save(hist);
+
+      // Asiento en AuditoriaEvento (Capa 1: Telemetría Operacional)
+      const audit = manager.create(AuditoriaEvento, {
+        fechaEvento: new Date(),
+        usuarioBd: user?.username || 'SYSTEM',
+        clientIdentifier: `@${user?.username || 'admin'}`,
+        modulo: 'RECURSOS_HUMANOS',
+        tablaAfectada: 'EMPLEADO',
+        operacion: 'INSERT',
+        registroId: guardado.empleadoId,
+        host: host || 'localhost',
+        ipCliente: clientIp || '127.0.0.1',
+        descripcion: `Alta de colaborador: ${guardado.nombre} ${guardado.apellido} (DPI: ${guardado.dpi || 'N/A'}, Puesto: ${puesto.nombre}, Sucursal: ${sucursal.nombre})`,
+      });
+      await manager.save(audit);
 
       return {
         mensaje: `Colaborador ${guardado.nombre} ${guardado.apellido} registrado exitosamente.`,
@@ -509,7 +525,7 @@ export class PlanillasService {
   /**
    * Actualizar datos del colaborador y su salario con registro en historial
    */
-  async updateEmpleado(id: number, dto: UpdateEmpleadoDto, sucursalId?: number) {
+  async updateEmpleado(id: number, dto: UpdateEmpleadoDto, sucursalId?: number, user?: any, clientIp?: string, host?: string) {
     return this.dataSource.transaction(async (manager) => {
       const emp = await manager.findOne(Empleado, {
         where: { empleadoId: id },
@@ -549,7 +565,7 @@ export class PlanillasService {
         emp.sucursal = sucursal;
       }
 
-      // Si cambia el salario, asentar en HistorialSalario
+      // Si cambia el salario, asentar en HistorialSalario (Capa 2: Snapshot de Negocio)
       if (dto.salarioActual !== undefined && Number(dto.salarioActual) !== Number(emp.salarioActual)) {
         const salarioPrevio = Number(emp.salarioActual);
         const salarioNuevo = Number(dto.salarioActual);
@@ -567,6 +583,21 @@ export class PlanillasService {
       }
 
       const actualizado = await manager.save(emp);
+
+      // Asiento en AuditoriaEvento (Capa 1: Telemetría Operacional)
+      const audit = manager.create(AuditoriaEvento, {
+        fechaEvento: new Date(),
+        usuarioBd: user?.username || 'SYSTEM',
+        clientIdentifier: `@${user?.username || 'admin'}`,
+        modulo: 'RECURSOS_HUMANOS',
+        tablaAfectada: 'EMPLEADO',
+        operacion: 'UPDATE',
+        registroId: actualizado.empleadoId,
+        host: host || 'localhost',
+        ipCliente: clientIp || '127.0.0.1',
+        descripcion: `Modificación de colaborador: ${actualizado.nombre} ${actualizado.apellido} (Salario: Q ${actualizado.salarioActual})`,
+      });
+      await manager.save(audit);
 
       return {
         mensaje: `Colaborador ${actualizado.nombre} ${actualizado.apellido} actualizado exitosamente.`,
@@ -598,27 +629,44 @@ export class PlanillasService {
   /**
    * Cambiar estado operativo del colaborador (Baja laboral / Reactivación)
    */
-  async toggleEstadoEmpleado(id: number, nuevoEstado?: string, sucursalId?: number) {
-    const emp = await this.empleadoRepo.findOne({
-      where: { empleadoId: id },
-      relations: { sucursal: true },
+  async toggleEstadoEmpleado(id: number, nuevoEstado?: string, sucursalId?: number, user?: any, clientIp?: string, host?: string) {
+    return this.dataSource.transaction(async (manager) => {
+      const emp = await manager.findOne(Empleado, {
+        where: { empleadoId: id },
+        relations: { sucursal: true },
+      });
+      if (!emp) {
+        throw new NotFoundException(`Colaborador con ID ${id} no encontrado`);
+      }
+
+      if (sucursalId && Number(emp.sucursal?.sucursalId) !== Number(sucursalId)) {
+        throw new BadRequestException('No puedes dar de baja o reactivar colaboradores de otra sucursal.');
+      }
+
+      const estadoFinal = nuevoEstado || (emp.estado === 'ACTIVO' ? 'INACTIVO' : 'ACTIVO');
+      emp.estado = estadoFinal;
+      await manager.save(emp);
+
+      // Asiento en AuditoriaEvento (Capa 1: Telemetría Operacional)
+      const audit = manager.create(AuditoriaEvento, {
+        fechaEvento: new Date(),
+        usuarioBd: user?.username || 'SYSTEM',
+        clientIdentifier: `@${user?.username || 'admin'}`,
+        modulo: 'RECURSOS_HUMANOS',
+        tablaAfectada: 'EMPLEADO',
+        operacion: 'UPDATE',
+        registroId: emp.empleadoId,
+        host: host || 'localhost',
+        ipCliente: clientIp || '127.0.0.1',
+        descripcion: `Cambio de estado de colaborador ${emp.nombre} ${emp.apellido} a "${estadoFinal}"`,
+      });
+      await manager.save(audit);
+
+      return {
+        mensaje: `Colaborador ${emp.nombre} ${emp.apellido} marcado como ${estadoFinal}.`,
+        empleadoId: emp.empleadoId,
+        estado: emp.estado,
+      };
     });
-    if (!emp) {
-      throw new NotFoundException(`Colaborador con ID ${id} no encontrado`);
-    }
-
-    if (sucursalId && Number(emp.sucursal?.sucursalId) !== Number(sucursalId)) {
-      throw new BadRequestException('No puedes dar de baja o reactivar colaboradores de otra sucursal.');
-    }
-
-    const estadoFinal = nuevoEstado || (emp.estado === 'ACTIVO' ? 'INACTIVO' : 'ACTIVO');
-    emp.estado = estadoFinal;
-    await this.empleadoRepo.save(emp);
-
-    return {
-      mensaje: `Colaborador ${emp.nombre} ${emp.apellido} marcado como ${estadoFinal}.`,
-      empleadoId: emp.empleadoId,
-      estado: emp.estado,
-    };
   }
 }

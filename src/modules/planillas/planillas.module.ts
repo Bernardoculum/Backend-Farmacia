@@ -8,6 +8,7 @@ import { Empleado } from '../../database/entities/Empleado';
 import { Puesto } from '../../database/entities/Puesto';
 import { Sucursal } from '../../database/entities/Sucursal';
 import { HistorialSalario } from '../../database/entities/HistorialSalario';
+import { AuditoriaEvento } from '../../database/entities/AuditoriaEvento';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { HistorialSalario } from '../../database/entities/HistorialSalario';
       Puesto,
       Sucursal,
       HistorialSalario,
+      AuditoriaEvento,
     ]),
   ],
   controllers: [PlanillasController],

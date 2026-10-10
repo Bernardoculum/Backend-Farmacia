@@ -24,6 +24,8 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { Role } from '../../common/enums/role.enum';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { extractClientInfo } from '../../common/utils/client-info.util';
 
 import { BranchScope, BranchScopeContext } from '../../common/branch-scope';
 
@@ -61,11 +63,14 @@ export class PlanillasController {
   createEmpleado(
     @Body() dto: CreateEmpleadoDto,
     @BranchScope() scope: BranchScopeContext,
+    @CurrentUser() user: any,
+    @Req() req: any,
   ) {
     if (!scope.isGlobal && scope.effectiveSucursalId) {
       dto.sucursalId = scope.effectiveSucursalId;
     }
-    return this.planillasService.createEmpleado(dto);
+    const { clientIp, host } = extractClientInfo(req);
+    return this.planillasService.createEmpleado(dto, user, clientIp, host);
   }
 
   @Put('empleados/:id')
@@ -76,8 +81,11 @@ export class PlanillasController {
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateEmpleadoDto,
     @BranchScope() scope: BranchScopeContext,
+    @CurrentUser() user: any,
+    @Req() req: any,
   ) {
-    return this.planillasService.updateEmpleado(id, dto, scope.effectiveSucursalId);
+    const { clientIp, host } = extractClientInfo(req);
+    return this.planillasService.updateEmpleado(id, dto, scope.effectiveSucursalId, user, clientIp, host);
   }
 
   @Patch('empleados/:id/estado')
@@ -87,9 +95,12 @@ export class PlanillasController {
   toggleEstadoEmpleado(
     @Param('id', ParseIntPipe) id: number,
     @BranchScope() scope: BranchScopeContext,
+    @CurrentUser() user: any,
+    @Req() req: any,
     @Body('estado') estado?: string,
   ) {
-    return this.planillasService.toggleEstadoEmpleado(id, estado, scope.effectiveSucursalId);
+    const { clientIp, host } = extractClientInfo(req);
+    return this.planillasService.toggleEstadoEmpleado(id, estado, scope.effectiveSucursalId, user, clientIp, host);
   }
 
   @Get('puestos')

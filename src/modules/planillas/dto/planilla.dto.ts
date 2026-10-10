@@ -4,6 +4,7 @@ import {
   IsString,
   IsNumber,
   Min,
+  Max,
   IsIn,
   IsEmail,
   Matches,
@@ -69,12 +70,12 @@ export class CreateEmpleadoDto {
 
   @ApiPropertyOptional({ example: '1234567-8' })
   @IsOptional()
-  @Matches(/^[0-9]+(-?[0-9kK])?$/, { message: 'Formato de NIT inválido' })
+  @Matches(/^(CF|cf|[0-9]{4,10}(-?[0-9kK])?)$/, { message: 'Formato de NIT inválido (Ej. 1234567-8, 12345678 o CF, máx 10 dígitos)' })
   nit?: string;
 
   @ApiPropertyOptional({ example: '1098765432' })
   @IsOptional()
-  @Matches(/^[0-9]+$/, { message: 'El número de afiliación IGSS debe ser numérico' })
+  @Matches(/^[0-9]{6,12}$/, { message: 'El número de afiliación IGSS debe contener entre 6 y 12 dígitos numéricos' })
   noAfiliacionIgss?: string;
 
   @ApiPropertyOptional({ example: 'TRANSFERENCIA' })
@@ -101,7 +102,8 @@ export class CreateEmpleadoDto {
   @IsNotEmpty({ message: 'El salario actual es obligatorio' })
   @Type(() => Number)
   @IsNumber()
-  @Min(3000, { message: 'El salario debe cumplir el mínimo de ley' })
+  @Min(3000, { message: 'El salario debe cumplir el mínimo de ley (mínimo Q 3,000.00)' })
+  @Max(150000, { message: 'El salario no puede exceder Q 150,000.00' })
   salarioActual: number;
 
   @ApiProperty({ example: 1 })
@@ -144,10 +146,12 @@ export class UpdateEmpleadoDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @Matches(/^(CF|cf|[0-9]{4,10}(-?[0-9kK])?)$/, { message: 'Formato de NIT inválido (Ej. 1234567-8, 12345678 o CF, máx 10 dígitos)' })
   nit?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
+  @Matches(/^[0-9]{6,12}$/, { message: 'El número de afiliación IGSS debe contener entre 6 y 12 dígitos numéricos' })
   noAfiliacionIgss?: string;
 
   @ApiPropertyOptional()
@@ -172,6 +176,7 @@ export class UpdateEmpleadoDto {
   @Type(() => Number)
   @IsNumber()
   @Min(1, { message: 'El salario debe ser un monto positivo mayor a cero' })
+  @Max(150000, { message: 'El salario no puede exceder Q 150,000.00' })
   salarioActual?: number;
 
   @ApiPropertyOptional()

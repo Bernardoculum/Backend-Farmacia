@@ -16,6 +16,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { Role } from '../../common/enums/role.enum';
+import { extractClientInfo } from '../../common/utils/client-info.util';
 
 @ApiTags('Autenticación')
 @Controller('auth')
@@ -26,9 +27,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Iniciar sesión y obtener token JWT' })
   async login(@Body() loginDto: LoginDto, @Req() req: any) {
-    const rawIp = req.headers?.['x-forwarded-for'] || req.socket?.remoteAddress || req.ip || '127.0.0.1';
-    const clientIp = typeof rawIp === 'string' ? rawIp.split(',')[0].trim() : '127.0.0.1';
-    const host = req.headers?.host || req.hostname || 'localhost';
+    const { clientIp, host } = extractClientInfo(req);
     return this.authService.login(loginDto, clientIp, host);
   }
 
