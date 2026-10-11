@@ -271,13 +271,14 @@ export class CajasService {
     const sesion = await qb.getOne();
 
     if (!sesion) {
-      return null;
+      return { activa: false, sesion: null };
     }
 
-    return {
+    const data = {
       sesionCajaId: sesion.sesionCajaId,
       cajaId: sesion.caja?.cajaId,
       codigoCaja: sesion.caja?.codigoCaja || 'Caja 1',
+      nombreCaja: sesion.caja?.descripcion || sesion.caja?.codigoCaja || 'Caja 1',
       sucursalId: sesion.caja?.sucursalId,
       estado: sesion.estado,
       saldoInicial: Number(sesion.saldoInicial || 0),
@@ -287,6 +288,13 @@ export class CajasService {
       cajero: sesion.empleadoApertura
         ? `${sesion.empleadoApertura.nombre} ${sesion.empleadoApertura.apellido}`.trim()
         : 'Cajero',
+      empleadoId: sesion.empleadoApertura?.empleadoId,
+    };
+
+    return {
+      activa: true,
+      sesion: data,
+      ...data,
     };
   }
 

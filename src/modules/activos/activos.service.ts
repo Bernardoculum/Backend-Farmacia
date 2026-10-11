@@ -171,11 +171,23 @@ export class ActivosService {
    */
   async createActivo(dto: CreateActivoDto) {
     return this.dataSource.transaction(async (manager) => {
+      const descripcion = (dto.descripcion || dto.nombre || '').trim();
+      if (!descripcion) {
+        throw new BadRequestException('La descripción o nombre del activo es obligatoria');
+      }
+
+      const valor = Number(dto.valorAdquisicion !== undefined ? dto.valorAdquisicion : dto.costoAdquisicion);
+      if (isNaN(valor) || valor <= 0) {
+        throw new BadRequestException('El valor de adquisición debe ser mayor a 0');
+      }
+
+      const codActivo = dto.codigoActivo?.trim() || `ACT-${Date.now().toString().slice(-6)}`;
+
       const existeCodigo = await manager.findOne(ActivoFijo, {
-        where: { codigoActivo: dto.codigoActivo.trim() },
+        where: { codigoActivo: codActivo },
       });
       if (existeCodigo) {
-        throw new ConflictException(`El código de placa/activo "${dto.codigoActivo}" ya existe`);
+        throw new ConflictException(`El código de placa/activo "${codActivo}" ya existe`);
       }
 
       const categoria = await manager.findOne(CategoriaActivo, {
@@ -188,11 +200,9 @@ export class ActivosService {
       });
       if (!sucursal) throw new NotFoundException(`Sucursal con ID ${dto.sucursalId} no encontrada`);
 
-      const valor = Number(dto.valorAdquisicion);
-
       const nuevoActivo = manager.create(ActivoFijo, {
-        codigoActivo: dto.codigoActivo.trim(),
-        descripcion: dto.descripcion.trim(),
+        codigoActivo: codActivo,
+        descripcion,
         marca: dto.marca?.trim() || null,
         modelo: dto.modelo?.trim() || null,
         numeroSerie: dto.numeroSerie?.trim() || null,
@@ -209,12 +219,18 @@ export class ActivosService {
       const guardado = await manager.save(nuevoActivo);
 
       // Asiento en HistorialActivo
+      const obsParts = [
+        'Alta e incorporación al inventario de activos fijos',
+        dto.responsableAsignado ? `Custodio: ${dto.responsableAsignado.trim()}` : '',
+        dto.observaciones ? `Observaciones: ${dto.observaciones.trim()}` : '',
+      ].filter(Boolean).join('. ');
+
       const hist = manager.create(HistorialActivo, {
         activo: guardado,
         sucursalDestino: sucursal,
-        tipoMovimiento: 'ALTA_INICIAL',
+        tipoMovimiento: 'ALTA',
         valorLibros: valor,
-        observacion: 'Alta e incorporación al inventario de activos fijos',
+        observacion: obsParts,
         fechaMovimiento: new Date(),
       });
       await manager.save(hist);

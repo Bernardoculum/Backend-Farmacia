@@ -8,13 +8,21 @@ export class CreateActivoDto {
   @IsString()
   codigoActivo: string;
 
-  @ApiProperty({ description: 'Descripción o nombre del activo', example: 'Refrigerador Clínico de Vacunas 300L' })
-  @IsNotEmpty({ message: 'La descripción es obligatoria' })
+  @ApiPropertyOptional({ description: 'Descripción o nombre del activo', example: 'Refrigerador Clínico de Vacunas 300L' })
+  @IsOptional()
   @IsString()
   @Matches(/^(?!\s*\d+\s*$).+$/, {
     message: 'La descripción no puede estar compuesta únicamente por números (ej. 323)',
   })
-  descripcion: string;
+  descripcion?: string;
+
+  @ApiPropertyOptional({ description: 'Nombre o denominación del activo (alias de descripción)', example: 'Refrigerador Clínico' })
+  @IsOptional()
+  @IsString()
+  @Matches(/^(?!\s*\d+\s*$).+$/, {
+    message: 'El nombre no puede estar compuesto únicamente por números (ej. 323)',
+  })
+  nombre?: string;
 
   @ApiPropertyOptional({ example: 'Samsung / Biosafe' })
   @IsOptional()
@@ -31,12 +39,19 @@ export class CreateActivoDto {
   @IsString()
   numeroSerie?: string;
 
-  @ApiProperty({ example: 12500 })
-  @IsNotEmpty({ message: 'El valor de adquisición es obligatorio' })
+  @ApiPropertyOptional({ example: 12500 })
+  @IsOptional()
   @Type(() => Number)
-  @IsNumber()
+  @IsNumber({}, { message: 'El valor de adquisición debe ser un número válido' })
   @Min(0.01, { message: 'El valor de adquisición debe ser mayor a 0' })
-  valorAdquisicion: number;
+  valorAdquisicion?: number;
+
+  @ApiPropertyOptional({ example: 12500, description: 'Alias de valorAdquisicion' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({}, { message: 'El costo de adquisición debe ser un número válido' })
+  @Min(0.01, { message: 'El costo de adquisición debe ser mayor a 0' })
+  costoAdquisicion?: number;
 
   @ApiProperty({ example: 1 })
   @IsNotEmpty({ message: 'La categoría es obligatoria' })
@@ -54,6 +69,16 @@ export class CreateActivoDto {
   @IsOptional()
   @IsString()
   fechaAdquisicion?: string;
+
+  @ApiPropertyOptional({ example: 'Ing. Carlos Méndez' })
+  @IsOptional()
+  @IsString()
+  responsableAsignado?: string;
+
+  @ApiPropertyOptional({ example: 'Equipo con garantía extendida' })
+  @IsOptional()
+  @IsString()
+  observaciones?: string;
 }
 
 export class TrasladoActivoDto {
