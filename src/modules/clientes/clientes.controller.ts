@@ -74,6 +74,12 @@ export class ClientesController {
     return this.clientesService.toggleEstadoLaboratorio(id, estado);
   }
 
+  @Get('municipios')
+  @ApiOperation({ summary: 'Listar catálogo de municipios y departamentos' })
+  findAllMunicipios() {
+    return this.clientesService.findAllMunicipios();
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Consultar detalle del cliente y sus últimos pedidos' })
   findOneCliente(@Param('id', ParseIntPipe) id: number) {

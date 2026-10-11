@@ -89,6 +89,12 @@ export class UpdateClienteDto {
   @IsString()
   referenciaDireccion?: string;
 
+  @ApiPropertyOptional({ description: 'ID de municipio', example: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  municipioId?: number;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()

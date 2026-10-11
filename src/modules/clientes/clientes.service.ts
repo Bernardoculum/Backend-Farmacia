@@ -75,6 +75,7 @@ export class ClientesService {
         email: c.email,
         direccion: c.direccion,
         referenciaDireccion: c.referenciaDireccion,
+        municipioId: c.municipio?.municipioId,
         municipio: c.municipio?.nombre,
         departamento: c.municipio?.departamento?.nombre,
         fechaRegistro: c.fechaRegistro,
@@ -194,6 +195,15 @@ export class ClientesService {
     if (dto.referenciaDireccion !== undefined) cliente.referenciaDireccion = dto.referenciaDireccion?.trim() || null;
     if (dto.estado) cliente.estado = dto.estado;
 
+    if (dto.municipioId !== undefined) {
+      const muni = await this.municipioRepo.findOne({
+        where: { municipioId: dto.municipioId },
+      });
+      if (muni) {
+        cliente.municipio = muni;
+      }
+    }
+
     const actualizado = await this.clienteRepo.save(cliente);
     return {
       mensaje: 'Cliente actualizado exitosamente',
@@ -309,5 +319,28 @@ export class ClientesService {
       mensaje: `Laboratorio "${lab.nombre}" ahora está ${estadoFinal}.`,
       laboratorio: lab,
     };
+  }
+
+  /**
+   * Listar todos los municipios con su departamento
+   */
+  async findAllMunicipios() {
+    const municipios = await this.municipioRepo.find({
+      relations: { departamento: true },
+      order: {
+        departamento: { nombre: 'ASC' },
+        nombre: 'ASC',
+      },
+    });
+
+    return municipios.map((m) => ({
+      municipioId: m.municipioId,
+      nombre: m.nombre,
+      departamentoId: m.departamentoId,
+      departamentoNombre: m.departamento?.nombre || '',
+      nombreCompleto: m.departamento?.nombre
+        ? `${m.nombre}, ${m.departamento.nombre}`
+        : m.nombre,
+    }));
   }
 }
