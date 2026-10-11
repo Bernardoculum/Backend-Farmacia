@@ -18,6 +18,7 @@ import { Inventario } from '../../database/entities/Inventario';
 import { MovimientoInventario } from '../../database/entities/MovimientoInventario';
 import { SesionCaja } from '../../database/entities/SesionCaja';
 import { MovimientoCaja } from '../../database/entities/MovimientoCaja';
+import { Municipio } from '../../database/entities/Municipio';
 import { CreatePedidoDto } from './dto/create-pedido.dto';
 import { CreateClienteDto } from './dto/create-cliente.dto';
 import { UpdateEstadoPedidoDto } from './dto/update-estado-pedido.dto';
@@ -642,6 +643,18 @@ export class PedidosService {
       return clienteExistente;
     }
 
+    let municipio: Municipio | null = null;
+    if (dto.municipioId) {
+      municipio = await this.dataSource.getRepository(Municipio).findOne({ where: { municipioId: dto.municipioId } });
+    }
+    if (!municipio) {
+      municipio = await this.dataSource.getRepository(Municipio).findOne({ where: { municipioId: 1 } });
+      if (!municipio) {
+        const todos = await this.dataSource.getRepository(Municipio).find({ take: 1 });
+        municipio = todos[0] || null;
+      }
+    }
+
     const nuevo = this.clienteRepo.create({
       nombre: dto.nombre.trim(),
       apellido: dto.apellido?.trim() || null,
@@ -649,6 +662,7 @@ export class PedidosService {
       direccion: dto.direccion.trim(),
       referenciaDireccion: dto.referenciaDireccion?.trim() || null,
       email: dto.email?.trim() || null,
+      municipio: municipio!,
       estado: 'ACTIVO',
     });
 

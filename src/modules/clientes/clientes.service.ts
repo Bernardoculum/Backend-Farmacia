@@ -137,6 +137,13 @@ export class ClientesService {
     if (dto.municipioId) {
       municipio = await this.municipioRepo.findOne({ where: { municipioId: dto.municipioId } });
     }
+    if (!municipio) {
+      municipio = await this.municipioRepo.findOne({ where: { municipioId: 1 } });
+      if (!municipio) {
+        const municipios = await this.municipioRepo.find({ take: 1 });
+        municipio = municipios[0] || null;
+      }
+    }
 
     const nuevo = this.clienteRepo.create({
       nombre: dto.nombre.trim(),
