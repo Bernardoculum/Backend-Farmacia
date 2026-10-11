@@ -315,6 +315,24 @@ export class ActivosService {
    * Catálogo de categorías
    */
   async findAllCategorias() {
-    return this.categoriaRepo.find({ order: { categoriaActivoId: 'ASC' } });
+    const cats = await this.categoriaRepo.find({
+      where: { estado: 'ACTIVO' },
+      order: { categoriaActivoId: 'ASC' },
+    });
+    return cats.map((c) => {
+      const porcentaje =
+        c.vidaUtilMeses > 0
+          ? Math.round((12 / c.vidaUtilMeses) * 100 * 100) / 100
+          : 20;
+      return {
+        id: c.categoriaActivoId,
+        categoriaActivoId: c.categoriaActivoId,
+        nombre: c.nombre,
+        vidaUtilMeses: c.vidaUtilMeses,
+        porcentajeDepreciacionAnual: porcentaje,
+        estado: c.estado,
+        activo: c.estado === 'ACTIVO',
+      };
+    });
   }
 }
