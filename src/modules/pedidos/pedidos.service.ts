@@ -120,10 +120,31 @@ export class PedidosService {
         }
         cliente = cli;
       } else {
-        // En mostrador: Consumidor Final (ID 6 o primer cliente existente)
-        let cf = await manager.findOne(Cliente, { where: { clienteId: 6 } });
+        // En mostrador: Consumidor Final (Buscar por clienteId 6, o nombre 'Consumidor Final', o primer cliente registrado)
+        let cf = await manager.findOne(Cliente, {
+          where: [
+            { clienteId: 6 },
+            { nombre: 'Consumidor Final' },
+            { nombre: 'Consumidor', apellido: 'Final' },
+          ],
+        });
         if (!cf) {
-          cf = await manager.findOne(Cliente, { order: { clienteId: 'ASC' } });
+          const clientes = await manager.find(Cliente, {
+            order: { clienteId: 'ASC' },
+            take: 1,
+          });
+          cf = clientes[0] || null;
+        }
+        if (!cf) {
+          cf = manager.create(Cliente, {
+            nombre: 'Consumidor',
+            apellido: 'Final',
+            telefono: '22000000',
+            direccion: 'Ciudad de Guatemala',
+            municipioId: 1,
+            estado: 'ACTIVO',
+          });
+          cf = await manager.save(cf);
         }
         cliente = cf!;
       }
