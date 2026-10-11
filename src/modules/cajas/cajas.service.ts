@@ -58,6 +58,7 @@ export class CajasService {
     const sesionesAbiertas = await this.sesionRepo.find({
       where: { estado: 'ABIERTA' },
       relations: {
+        caja: true,
         empleadoApertura: true,
       },
     });
