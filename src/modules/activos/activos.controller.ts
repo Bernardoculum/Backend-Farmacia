@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Put,
   Param,
   Body,
   Query,
@@ -12,6 +13,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { ActivosService } from './activos.service';
 import {
   CreateActivoDto,
+  UpdateActivoDto,
   TrasladoActivoDto,
   BajaActivoDto,
   FilterActivoDto,
@@ -65,6 +67,17 @@ export class ActivosController {
       dto.sucursalId = scope.effectiveSucursalId;
     }
     return this.activosService.createActivo(dto);
+  }
+
+  @Put(':id')
+  @UseGuards(RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.GERENTE_SUCURSAL)
+  @ApiOperation({ summary: 'Actualizar especificaciones y datos de un activo fijo' })
+  updateActivo(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateActivoDto,
+  ) {
+    return this.activosService.updateActivo(id, dto);
   }
 
   @Post(':id/traslado')

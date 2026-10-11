@@ -1,5 +1,5 @@
 import { IsNotEmpty, IsOptional, IsString, IsNumber, Min, Matches } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
 export class CreateActivoDto {
@@ -80,6 +80,8 @@ export class CreateActivoDto {
   @IsString()
   observaciones?: string;
 }
+
+export class UpdateActivoDto extends PartialType(CreateActivoDto) {}
 
 export class TrasladoActivoDto {
   @ApiProperty({ description: 'ID de la sucursal de destino', example: 2 })

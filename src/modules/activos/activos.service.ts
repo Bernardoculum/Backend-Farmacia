@@ -13,6 +13,7 @@ import { HistorialActivo } from '../../database/entities/HistorialActivo';
 import { Sucursal } from '../../database/entities/Sucursal';
 import {
   CreateActivoDto,
+  UpdateActivoDto,
   TrasladoActivoDto,
   BajaActivoDto,
   FilterActivoDto,
@@ -96,23 +97,49 @@ export class ActivosService {
     const totalValorLibros = Number(rawValor?.totalValor || 0);
 
     return {
-      data: items.map((a) => ({
-        activoId: a.activoId,
-        codigoActivo: a.codigoActivo,
-        descripcion: a.descripcion,
-        marca: a.marca,
-        modelo: a.modelo,
-        numeroSerie: a.numeroSerie,
-        categoria: a.categoriaActivo?.nombre || 'General',
-        categoriaId: a.categoriaActivo?.categoriaActivoId,
-        sucursal: a.sucursal?.nombre || 'Central',
-        sucursalId: a.sucursal?.sucursalId,
-        valorAdquisicion: Number(a.valorAdquisicion),
-        valorLibros: Number(a.valorLibros),
-        depreciacionAcumulada: Number(a.depreciacionAcumulada),
-        fechaAdquisicion: a.fechaAdquisicion,
-        estado: a.estado,
-      })),
+      data: items.map((a) => {
+        const catPorcentaje =
+          a.categoriaActivo && a.categoriaActivo.vidaUtilMeses > 0
+            ? Math.round((12 / a.categoriaActivo.vidaUtilMeses) * 100 * 100) / 100
+            : 20;
+
+        return {
+          activoId: a.activoId,
+          id: a.activoId,
+          codigoActivo: a.codigoActivo,
+          descripcion: a.descripcion,
+          nombre: a.descripcion,
+          marca: a.marca,
+          modelo: a.modelo,
+          numeroSerie: a.numeroSerie,
+          categoriaActivoId: a.categoriaActivo?.categoriaActivoId,
+          categoriaActivo: a.categoriaActivo
+            ? {
+                id: a.categoriaActivo.categoriaActivoId,
+                categoriaActivoId: a.categoriaActivo.categoriaActivoId,
+                codigo: a.categoriaActivo.nombre,
+                nombre: a.categoriaActivo.nombre,
+                porcentajeDepreciacionAnual: catPorcentaje,
+                activo: a.categoriaActivo.estado === 'ACTIVO',
+              }
+            : null,
+          categoria: a.categoriaActivo?.nombre || 'General',
+          sucursalId: a.sucursal?.sucursalId,
+          sucursal: a.sucursal
+            ? {
+                id: a.sucursal.sucursalId,
+                sucursalId: a.sucursal.sucursalId,
+                nombre: a.sucursal.nombre,
+              }
+            : null,
+          valorAdquisicion: Number(a.valorAdquisicion || 0),
+          costoAdquisicion: Number(a.valorAdquisicion || 0),
+          valorLibros: Number(a.valorLibros || 0),
+          depreciacionAcumulada: Number(a.depreciacionAcumulada || 0),
+          fechaAdquisicion: a.fechaAdquisicion,
+          estado: a.estado === 'ACTIVO' ? 'OPERATIVO' : a.estado,
+        };
+      }),
       total,
       page,
       limit,
@@ -122,6 +149,12 @@ export class ActivosService {
         activosOperativos: activosKpi,
         activosDeBaja: deBajaKpi,
         totalValorLibros,
+        total: totalKpi,
+        operativos: activosKpi,
+        enMantenimiento: 0,
+        enTransito: 0,
+        dadosDeBaja: deBajaKpi,
+        costoTotal: totalValorLibros,
       },
     };
   }
@@ -150,18 +183,77 @@ export class ActivosService {
       (a, b) => new Date(b.fechaMovimiento).getTime() - new Date(a.fechaMovimiento).getTime(),
     );
 
+    const catPorcentaje =
+      activo.categoriaActivo && activo.categoriaActivo.vidaUtilMeses > 0
+        ? Math.round((12 / activo.categoriaActivo.vidaUtilMeses) * 100 * 100) / 100
+        : 20;
+
+    let responsable = '';
+    let obs = '';
+    for (const m of movimientos) {
+      if (m.observacion) {
+        if (m.observacion.includes('Custodio:')) {
+          const match = m.observacion.match(/Custodio:\s*([^.]+)/);
+          if (match && !responsable) responsable = match[1].trim();
+        }
+        if (m.observacion.includes('Observaciones:')) {
+          const match = m.observacion.match(/Observaciones:\s*([^.]+)/);
+          if (match && !obs) obs = match[1].trim();
+        }
+      }
+    }
+
     return {
-      ...activo,
-      valorAdquisicion: Number(activo.valorAdquisicion),
-      valorLibros: Number(activo.valorLibros),
+      id: activo.activoId,
+      activoId: activo.activoId,
+      codigoActivo: activo.codigoActivo,
+      nombre: activo.descripcion,
+      descripcion: activo.descripcion,
+      marca: activo.marca,
+      modelo: activo.modelo,
+      numeroSerie: activo.numeroSerie,
+      fechaAdquisicion: activo.fechaAdquisicion,
+      costoAdquisicion: Number(activo.valorAdquisicion || 0),
+      valorAdquisicion: Number(activo.valorAdquisicion || 0),
+      valorLibros: Number(activo.valorLibros || 0),
+      depreciacionAcumulada: Number(activo.depreciacionAcumulada || 0),
+      estado: activo.estado === 'ACTIVO' ? 'OPERATIVO' : activo.estado,
+      responsableAsignado: responsable,
+      observaciones: obs,
+      categoriaActivoId: activo.categoriaActivo?.categoriaActivoId,
+      categoriaActivo: activo.categoriaActivo
+        ? {
+            id: activo.categoriaActivo.categoriaActivoId,
+            categoriaActivoId: activo.categoriaActivo.categoriaActivoId,
+            codigo: activo.categoriaActivo.nombre,
+            nombre: activo.categoriaActivo.nombre,
+            porcentajeDepreciacionAnual: catPorcentaje,
+            activo: activo.categoriaActivo.estado === 'ACTIVO',
+          }
+        : null,
+      sucursalId: activo.sucursal?.sucursalId,
+      sucursal: activo.sucursal
+        ? {
+            id: activo.sucursal.sucursalId,
+            sucursalId: activo.sucursal.sucursalId,
+            nombre: activo.sucursal.nombre,
+          }
+        : null,
       historial: movimientos.map((h) => ({
+        id: h.historialActivoId,
         historialActivoId: h.historialActivoId,
+        activoFijoId: activo.activoId,
         tipoMovimiento: h.tipoMovimiento,
-        sucursalOrigen: h.sucursalOrigen?.nombre,
-        sucursalDestino: h.sucursalDestino?.nombre,
+        sucursalOrigenId: h.sucursalOrigen?.sucursalId,
+        sucursalOrigen: h.sucursalOrigen ? { id: h.sucursalOrigen.sucursalId, nombre: h.sucursalOrigen.nombre } : undefined,
+        sucursalDestinoId: h.sucursalDestino?.sucursalId,
+        sucursalDestino: h.sucursalDestino ? { id: h.sucursalDestino.sucursalId, nombre: h.sucursalDestino.nombre } : undefined,
         valorLibros: Number(h.valorLibros || 0),
-        observacion: h.observacion,
+        motivo: h.observacion || '',
+        observacion: h.observacion || '',
+        responsable: h.observacion?.includes('Custodio:') ? (h.observacion.match(/Custodio:\s*([^.]+)/)?.[1] || '') : '',
         fechaMovimiento: h.fechaMovimiento,
+        creadoEn: h.fechaMovimiento ? h.fechaMovimiento.toISOString() : new Date().toISOString(),
       })),
     };
   }
@@ -235,8 +327,45 @@ export class ActivosService {
       });
       await manager.save(hist);
 
+      const catPorcentaje =
+        categoria && categoria.vidaUtilMeses > 0
+          ? Math.round((12 / categoria.vidaUtilMeses) * 100 * 100) / 100
+          : 20;
+
       return {
         mensaje: `Activo fijo "${guardado.codigoActivo}" registrado exitosamente.`,
+        id: guardado.activoId,
+        activoId: guardado.activoId,
+        codigoActivo: guardado.codigoActivo,
+        nombre: guardado.descripcion,
+        descripcion: guardado.descripcion,
+        marca: guardado.marca,
+        modelo: guardado.modelo,
+        numeroSerie: guardado.numeroSerie,
+        categoriaActivoId: categoria.categoriaActivoId,
+        categoriaActivo: {
+          id: categoria.categoriaActivoId,
+          categoriaActivoId: categoria.categoriaActivoId,
+          codigo: categoria.nombre,
+          nombre: categoria.nombre,
+          porcentajeDepreciacionAnual: catPorcentaje,
+          activo: categoria.estado === 'ACTIVO',
+        },
+        categoria: categoria.nombre,
+        sucursalId: sucursal.sucursalId,
+        sucursal: {
+          id: sucursal.sucursalId,
+          sucursalId: sucursal.sucursalId,
+          nombre: sucursal.nombre,
+        },
+        costoAdquisicion: Number(guardado.valorAdquisicion || 0),
+        valorAdquisicion: Number(guardado.valorAdquisicion || 0),
+        valorLibros: Number(guardado.valorLibros || 0),
+        depreciacionAcumulada: Number(guardado.depreciacionAcumulada || 0),
+        fechaAdquisicion: guardado.fechaAdquisicion,
+        estado: guardado.estado === 'ACTIVO' ? 'OPERATIVO' : guardado.estado,
+        responsableAsignado: dto.responsableAsignado?.trim() || '',
+        observaciones: dto.observaciones?.trim() || '',
         activo: guardado,
       };
     });
@@ -272,7 +401,7 @@ export class ActivosService {
         activo,
         sucursalOrigen: origen,
         sucursalDestino,
-        tipoMovimiento: 'TRASLADO_SUCURSAL',
+        tipoMovimiento: 'TRASLADO',
         valorLibros: Number(activo.valorLibros),
         observacion: dto.motivo.trim(),
         fechaMovimiento: new Date(),
@@ -312,7 +441,7 @@ export class ActivosService {
       const hist = manager.create(HistorialActivo, {
         activo,
         sucursalOrigen: activo.sucursal,
-        tipoMovimiento: 'BAJA_DEFINITIVA',
+        tipoMovimiento: 'BAJA',
         valorLibros: 0,
         observacion: dto.motivo.trim(),
         fechaMovimiento: new Date(),
@@ -323,6 +452,133 @@ export class ActivosService {
         mensaje: `Activo ${activo.codigoActivo} retirado y dado de baja exitosamente.`,
         activoId: id,
         perdidaLibros: valorAnterior,
+      };
+    });
+  }
+
+  /**
+   * Actualizar activo fijo
+   */
+  async updateActivo(id: number, dto: UpdateActivoDto) {
+    return this.dataSource.transaction(async (manager) => {
+      const activo = await manager.findOne(ActivoFijo, {
+        where: { activoId: id },
+        relations: { categoriaActivo: true, sucursal: true },
+      });
+
+      if (!activo) {
+        throw new NotFoundException(`Activo fijo con ID ${id} no encontrado`);
+      }
+
+      if (dto.codigoActivo && dto.codigoActivo.trim() !== activo.codigoActivo) {
+        const existe = await manager.findOne(ActivoFijo, {
+          where: { codigoActivo: dto.codigoActivo.trim() },
+        });
+        if (existe && existe.activoId !== id) {
+          throw new ConflictException(`El código "${dto.codigoActivo}" ya está asignado a otro activo`);
+        }
+        activo.codigoActivo = dto.codigoActivo.trim();
+      }
+
+      const desc = (dto.descripcion || dto.nombre)?.trim();
+      if (desc) {
+        activo.descripcion = desc;
+      }
+
+      if (dto.marca !== undefined) activo.marca = dto.marca?.trim() || null;
+      if (dto.modelo !== undefined) activo.modelo = dto.modelo?.trim() || null;
+      if (dto.numeroSerie !== undefined) activo.numeroSerie = dto.numeroSerie?.trim() || null;
+
+      const valor = dto.valorAdquisicion !== undefined
+        ? Number(dto.valorAdquisicion)
+        : (dto.costoAdquisicion !== undefined ? Number(dto.costoAdquisicion) : undefined);
+      if (valor !== undefined && valor > 0) {
+        activo.valorAdquisicion = valor;
+        activo.valorLibros = valor;
+      }
+
+      if (dto.fechaAdquisicion) {
+        activo.fechaAdquisicion = new Date(dto.fechaAdquisicion);
+      }
+
+      if (dto.categoriaActivoId) {
+        const cat = await manager.findOne(CategoriaActivo, {
+          where: { categoriaActivoId: dto.categoriaActivoId },
+        });
+        if (cat) activo.categoriaActivo = cat;
+      }
+
+      if (dto.sucursalId) {
+        const suc = await manager.findOne(Sucursal, {
+          where: { sucursalId: dto.sucursalId },
+        });
+        if (suc) activo.sucursal = suc;
+      }
+
+      const guardado = await manager.save(activo);
+
+      if (dto.responsableAsignado || dto.observaciones) {
+        const obsParts = [
+          'Actualización de especificaciones y custodia',
+          dto.responsableAsignado ? `Custodio: ${dto.responsableAsignado.trim()}` : '',
+          dto.observaciones ? `Observaciones: ${dto.observaciones.trim()}` : '',
+        ].filter(Boolean).join('. ');
+
+        const hist = manager.create(HistorialActivo, {
+          activo: guardado,
+          sucursalDestino: guardado.sucursal,
+          tipoMovimiento: 'CAMBIO_ESTADO',
+          valorLibros: Number(guardado.valorLibros),
+          observacion: obsParts,
+          fechaMovimiento: new Date(),
+        });
+        await manager.save(hist);
+      }
+
+      const catPorcentaje =
+        guardado.categoriaActivo && guardado.categoriaActivo.vidaUtilMeses > 0
+          ? Math.round((12 / guardado.categoriaActivo.vidaUtilMeses) * 100 * 100) / 100
+          : 20;
+
+      return {
+        mensaje: `Activo fijo "${guardado.codigoActivo}" actualizado exitosamente.`,
+        id: guardado.activoId,
+        activoId: guardado.activoId,
+        codigoActivo: guardado.codigoActivo,
+        nombre: guardado.descripcion,
+        descripcion: guardado.descripcion,
+        marca: guardado.marca,
+        modelo: guardado.modelo,
+        numeroSerie: guardado.numeroSerie,
+        categoriaActivoId: guardado.categoriaActivo?.categoriaActivoId,
+        categoriaActivo: guardado.categoriaActivo
+          ? {
+              id: guardado.categoriaActivo.categoriaActivoId,
+              categoriaActivoId: guardado.categoriaActivo.categoriaActivoId,
+              codigo: guardado.categoriaActivo.nombre,
+              nombre: guardado.categoriaActivo.nombre,
+              porcentajeDepreciacionAnual: catPorcentaje,
+              activo: guardado.categoriaActivo.estado === 'ACTIVO',
+            }
+          : null,
+        categoria: guardado.categoriaActivo?.nombre || 'General',
+        sucursalId: guardado.sucursal?.sucursalId,
+        sucursal: guardado.sucursal
+          ? {
+              id: guardado.sucursal.sucursalId,
+              sucursalId: guardado.sucursal.sucursalId,
+              nombre: guardado.sucursal.nombre,
+            }
+          : null,
+        costoAdquisicion: Number(guardado.valorAdquisicion || 0),
+        valorAdquisicion: Number(guardado.valorAdquisicion || 0),
+        valorLibros: Number(guardado.valorLibros || 0),
+        depreciacionAcumulada: Number(guardado.depreciacionAcumulada || 0),
+        fechaAdquisicion: guardado.fechaAdquisicion,
+        estado: guardado.estado === 'ACTIVO' ? 'OPERATIVO' : guardado.estado,
+        responsableAsignado: dto.responsableAsignado?.trim() || '',
+        observaciones: dto.observaciones?.trim() || '',
+        activo: guardado,
       };
     });
   }
